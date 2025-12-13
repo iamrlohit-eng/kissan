@@ -14,7 +14,131 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      fertilizer_reports: {
+        Row: {
+          ai_analysis: string | null
+          created_at: string
+          field_id: string
+          id: string
+          improvement_techniques: string[] | null
+          moisture: number | null
+          nitrogen: number | null
+          organic_matter: number | null
+          ph: number | null
+          phosphorus: number | null
+          potassium: number | null
+          recommended_crops: string[] | null
+          report_date: string
+          temperature: number | null
+          user_id: string
+        }
+        Insert: {
+          ai_analysis?: string | null
+          created_at?: string
+          field_id: string
+          id?: string
+          improvement_techniques?: string[] | null
+          moisture?: number | null
+          nitrogen?: number | null
+          organic_matter?: number | null
+          ph?: number | null
+          phosphorus?: number | null
+          potassium?: number | null
+          recommended_crops?: string[] | null
+          report_date?: string
+          temperature?: number | null
+          user_id: string
+        }
+        Update: {
+          ai_analysis?: string | null
+          created_at?: string
+          field_id?: string
+          id?: string
+          improvement_techniques?: string[] | null
+          moisture?: number | null
+          nitrogen?: number | null
+          organic_matter?: number | null
+          ph?: number | null
+          phosphorus?: number | null
+          potassium?: number | null
+          recommended_crops?: string[] | null
+          report_date?: string
+          temperature?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fertilizer_reports_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fields: {
+        Row: {
+          acres: number | null
+          created_at: string
+          current_crop: string | null
+          id: string
+          location: string | null
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          acres?: number | null
+          created_at?: string
+          current_crop?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          acres?: number | null
+          created_at?: string
+          current_crop?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          farm_name: string | null
+          full_name: string | null
+          id: string
+          location: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          farm_name?: string | null
+          full_name?: string | null
+          id?: string
+          location?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          farm_name?: string | null
+          full_name?: string | null
+          id?: string
+          location?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
