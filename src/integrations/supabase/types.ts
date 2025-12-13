@@ -19,14 +19,19 @@ export type Database = {
           ai_analysis: string | null
           created_at: string
           field_id: string
+          file_type: string | null
+          file_url: string | null
           id: string
           improvement_techniques: string[] | null
+          latitude: number | null
+          longitude: number | null
           moisture: number | null
           nitrogen: number | null
           organic_matter: number | null
           ph: number | null
           phosphorus: number | null
           potassium: number | null
+          preferred_language: string | null
           recommended_crops: string[] | null
           report_date: string
           temperature: number | null
@@ -36,14 +41,19 @@ export type Database = {
           ai_analysis?: string | null
           created_at?: string
           field_id: string
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           improvement_techniques?: string[] | null
+          latitude?: number | null
+          longitude?: number | null
           moisture?: number | null
           nitrogen?: number | null
           organic_matter?: number | null
           ph?: number | null
           phosphorus?: number | null
           potassium?: number | null
+          preferred_language?: string | null
           recommended_crops?: string[] | null
           report_date?: string
           temperature?: number | null
@@ -53,14 +63,19 @@ export type Database = {
           ai_analysis?: string | null
           created_at?: string
           field_id?: string
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           improvement_techniques?: string[] | null
+          latitude?: number | null
+          longitude?: number | null
           moisture?: number | null
           nitrogen?: number | null
           organic_matter?: number | null
           ph?: number | null
           phosphorus?: number | null
           potassium?: number | null
+          preferred_language?: string | null
           recommended_crops?: string[] | null
           report_date?: string
           temperature?: number | null

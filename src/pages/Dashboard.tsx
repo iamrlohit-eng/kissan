@@ -35,6 +35,11 @@ interface Report {
   ai_analysis: string | null;
   recommended_crops: string[] | null;
   improvement_techniques: string[] | null;
+  file_url: string | null;
+  file_type: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  preferred_language: string | null;
 }
 
 const Dashboard = () => {
@@ -132,6 +137,23 @@ const Dashboard = () => {
     
     setIsAnalyzing(true);
     try {
+      // If report has a file, fetch it and convert to base64
+      let fileBase64: string | null = null;
+      if (report.file_url && report.file_type) {
+        try {
+          const response = await fetch(report.file_url);
+          const blob = await response.blob();
+          fileBase64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (e) {
+          console.error("Failed to fetch file for analysis:", e);
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("analyze-soil", {
         body: {
           nitrogen: report.nitrogen,
@@ -143,27 +165,52 @@ const Dashboard = () => {
           temperature: report.temperature,
           currentCrop: selectedField.current_crop,
           location: selectedField.location,
+          latitude: report.latitude,
+          longitude: report.longitude,
+          preferredLanguage: report.preferred_language || 'auto',
+          fileBase64: fileBase64,
+          fileType: report.file_type,
         },
       });
 
       if (error) throw error;
 
       if (data.success && data.analysis) {
-        setAiAnalysis(data.analysis);
+        setAiAnalysis({ ...data.analysis, detectedLanguage: data.detectedLanguage });
         
-        // Save analysis to database
+        // Update report with extracted data if available
+        const updateData: any = {
+          ai_analysis: JSON.stringify(data.analysis),
+          recommended_crops: data.analysis.recommendedCrops,
+          improvement_techniques: data.analysis.improvementTechniques?.map((t: any) => t.title),
+        };
+
+        // If AI extracted data from image, update the report values
+        if (data.analysis.extractedData) {
+          const extracted = data.analysis.extractedData;
+          if (extracted.nitrogen != null) updateData.nitrogen = extracted.nitrogen;
+          if (extracted.phosphorus != null) updateData.phosphorus = extracted.phosphorus;
+          if (extracted.potassium != null) updateData.potassium = extracted.potassium;
+          if (extracted.ph != null) updateData.ph = extracted.ph;
+          if (extracted.organicMatter != null) updateData.organic_matter = extracted.organicMatter;
+          if (extracted.moisture != null) updateData.moisture = extracted.moisture;
+        }
+
         await supabase
           .from("fertilizer_reports")
-          .update({
-            ai_analysis: JSON.stringify(data.analysis),
-            recommended_crops: data.analysis.recommendedCrops,
-            improvement_techniques: data.analysis.improvementTechniques?.map((t: any) => t.title),
-          })
+          .update(updateData)
           .eq("id", report.id);
+
+        // Refresh reports to show extracted values
+        if (selectedField) {
+          fetchReports(selectedField.id);
+        }
 
         toast({
           title: "Analysis Complete",
-          description: "AI has analyzed your soil report with recommendations.",
+          description: data.detectedLanguage 
+            ? `AI analyzed your report in ${data.detectedLanguage.languageName}.`
+            : "AI has analyzed your soil report with recommendations.",
         });
       } else {
         throw new Error(data.error || "Analysis failed");
@@ -300,7 +347,7 @@ const Dashboard = () => {
                   </Button>
 
                   {aiAnalysis && (
-                    <AIAnalysisCard analysis={aiAnalysis} />
+                    <AIAnalysisCard analysis={aiAnalysis} detectedLanguage={aiAnalysis.detectedLanguage} />
                   )}
                 </div>
 
