@@ -296,7 +296,24 @@ const Dashboard = () => {
                     {isAnalyzing ? "Analyzing..." : aiAnalysis ? "Re-Analyze with AI" : "Analyze with AI"}
                   </Button>
 
-                  {aiAnalysis && <AIAnalysisCard analysis={aiAnalysis} detectedLanguage={aiAnalysis.detectedLanguage} />}
+                  {aiAnalysis && (
+                    <AIAnalysisCard 
+                      analysis={aiAnalysis} 
+                      detectedLanguage={aiAnalysis.detectedLanguage}
+                      fieldName={selectedField.name}
+                      location={selectedField.location || "Unknown"}
+                      reportDate={selectedReport.report_date}
+                      reportData={{
+                        nitrogen: selectedReport.nitrogen,
+                        phosphorus: selectedReport.phosphorus,
+                        potassium: selectedReport.potassium,
+                        ph: selectedReport.ph,
+                        organicMatter: selectedReport.organic_matter,
+                        moisture: selectedReport.moisture,
+                        temperature: selectedReport.temperature,
+                      }}
+                    />
+                  )}
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
