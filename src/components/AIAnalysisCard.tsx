@@ -2,6 +2,7 @@ import { Sparkles, Wheat, TrendingUp, Info, CheckCircle, AlertCircle, Printer } 
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import DOMPurify from "dompurify";
 
 interface AIAnalysis {
   overallHealth: string;
@@ -62,6 +63,12 @@ export const AIAnalysisCard = ({
   reportDate = new Date().toISOString(),
   reportData = { nitrogen: null, phosphorus: null, potassium: null, ph: null, organicMatter: null, moisture: null, temperature: null }
 }: AIAnalysisCardProps) => {
+  // Sanitize text to prevent XSS
+  const sanitize = (text: string | number | null | undefined): string => {
+    if (text === null || text === undefined) return "";
+    return DOMPurify.sanitize(String(text), { ALLOWED_TAGS: [] });
+  };
+
   const handlePrint = () => {
     const printWindow = window.open("", "_blank", "width=800,height=600");
     if (!printWindow) {
@@ -127,7 +134,7 @@ export const AIAnalysisCard = ({
       ? `<div class="section">
           <div class="section-title">🌾 Recommended Crops</div>
           <div class="crop-tags">
-            ${analysis.recommendedCrops.map(crop => `<span class="crop-tag">${crop}</span>`).join('')}
+            ${analysis.recommendedCrops.map(crop => `<span class="crop-tag">${sanitize(crop)}</span>`).join('')}
           </div>
         </div>`
       : '';
@@ -136,9 +143,9 @@ export const AIAnalysisCard = ({
       ? `<div class="section">
           <div class="section-title">📈 Improvement Techniques</div>
           ${analysis.improvementTechniques.map(t => `
-            <div class="technique-card technique-${t.priority}">
-              <div class="technique-title">${t.title}<span class="priority-badge priority-${t.priority}">${t.priority} priority</span></div>
-              <div class="technique-desc">${t.description}</div>
+            <div class="technique-card technique-${sanitize(t.priority)}">
+              <div class="technique-title">${sanitize(t.title)}<span class="priority-badge priority-${sanitize(t.priority)}">${sanitize(t.priority)} priority</span></div>
+              <div class="technique-desc">${sanitize(t.description)}</div>
             </div>
           `).join('')}
         </div>`
@@ -147,7 +154,7 @@ export const AIAnalysisCard = ({
     const seasonalHtml = analysis.seasonalRecommendations
       ? `<div class="seasonal-box">
           <h3>🌱 Seasonal Tips</h3>
-          <p>${analysis.seasonalRecommendations}</p>
+          <p>${sanitize(analysis.seasonalRecommendations)}</p>
         </div>`
       : '';
 
@@ -180,15 +187,15 @@ export const AIAnalysisCard = ({
           <div class="field-info">
             <h2>📍 Field Information</h2>
             <div class="field-grid">
-              <div><strong>Field:</strong> ${fieldName}</div>
-              <div><strong>Location:</strong> ${location}</div>
+              <div><strong>Field:</strong> ${sanitize(fieldName)}</div>
+              <div><strong>Location:</strong> ${sanitize(location)}</div>
               <div><strong>Report Date:</strong> ${new Date(reportDate).toLocaleDateString()}</div>
             </div>
           </div>
 
           <div class="health-box ${healthClass}">
-            <h3>Soil Health: ${analysis.overallHealth}</h3>
-            <p>${analysis.summary}</p>
+            <h3>Soil Health: ${sanitize(analysis.overallHealth)}</h3>
+            <p>${sanitize(analysis.summary)}</p>
           </div>
 
           <div class="section">
@@ -205,21 +212,21 @@ export const AIAnalysisCard = ({
               <tbody>
                 <tr>
                   <td><strong>Nitrogen (N)</strong></td>
-                  <td>${getNutrientValue('nitrogen')} ppm</td>
-                  <td style="text-transform:capitalize">${analysis.nutrientAnalysis?.nitrogen?.status || "—"}</td>
-                  <td>${analysis.nutrientAnalysis?.nitrogen?.advice || "—"}</td>
+                  <td>${sanitize(getNutrientValue('nitrogen'))} ppm</td>
+                  <td style="text-transform:capitalize">${sanitize(analysis.nutrientAnalysis?.nitrogen?.status) || "—"}</td>
+                  <td>${sanitize(analysis.nutrientAnalysis?.nitrogen?.advice) || "—"}</td>
                 </tr>
                 <tr>
                   <td><strong>Phosphorus (P)</strong></td>
-                  <td>${getNutrientValue('phosphorus')} ppm</td>
-                  <td style="text-transform:capitalize">${analysis.nutrientAnalysis?.phosphorus?.status || "—"}</td>
-                  <td>${analysis.nutrientAnalysis?.phosphorus?.advice || "—"}</td>
+                  <td>${sanitize(getNutrientValue('phosphorus'))} ppm</td>
+                  <td style="text-transform:capitalize">${sanitize(analysis.nutrientAnalysis?.phosphorus?.status) || "—"}</td>
+                  <td>${sanitize(analysis.nutrientAnalysis?.phosphorus?.advice) || "—"}</td>
                 </tr>
                 <tr>
                   <td><strong>Potassium (K)</strong></td>
-                  <td>${getNutrientValue('potassium')} ppm</td>
-                  <td style="text-transform:capitalize">${analysis.nutrientAnalysis?.potassium?.status || "—"}</td>
-                  <td>${analysis.nutrientAnalysis?.potassium?.advice || "—"}</td>
+                  <td>${sanitize(getNutrientValue('potassium'))} ppm</td>
+                  <td style="text-transform:capitalize">${sanitize(analysis.nutrientAnalysis?.potassium?.status) || "—"}</td>
+                  <td>${sanitize(analysis.nutrientAnalysis?.potassium?.advice) || "—"}</td>
                 </tr>
                 <tr>
                   <td><strong>pH Level</strong></td>

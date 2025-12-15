@@ -176,11 +176,13 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
+        // Use signed URL since bucket is private
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
           .from('report-files')
-          .getPublicUrl(fileName);
+          .createSignedUrl(fileName, 86400); // 24 hours expiry
 
-        fileUrl = publicUrl;
+        if (signedUrlError) throw signedUrlError;
+        fileUrl = signedUrlData.signedUrl;
         fileType = selectedFile.type;
         fileBase64 = await fileToBase64(selectedFile);
       }
