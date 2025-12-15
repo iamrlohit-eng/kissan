@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { FieldHeader } from "@/components/FieldHeader";
 import { SoilHealthCard } from "@/components/SoilHealthCard";
 import { NutrientGauge } from "@/components/NutrientGauge";
@@ -12,6 +14,7 @@ import { AddFieldDialog } from "@/components/AddFieldDialog";
 import { AddReportDialog } from "@/components/AddReportDialog";
 import { AIAnalysisCard } from "@/components/AIAnalysisCard";
 import { Sprout, Plus, LogOut, MapPin } from "lucide-react";
+
 interface Field {
   id: string;
   name: string;
@@ -19,6 +22,7 @@ interface Field {
   acres: number | null;
   current_crop: string | null;
 }
+
 interface Report {
   id: string;
   field_id: string;
@@ -39,16 +43,13 @@ interface Report {
   longitude: number | null;
   preferred_language: string | null;
 }
+
 const Dashboard = () => {
-  const {
-    user,
-    isLoading: authLoading,
-    signOut
-  } = useAuth();
+  const { user, isLoading: authLoading, signOut } = useAuth();
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
+  const { t } = useLanguage();
+  
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<Field | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
@@ -58,29 +59,32 @@ const Dashboard = () => {
   const [showAddReport, setShowAddReport] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
     }
   }, [user, authLoading, navigate]);
+
   useEffect(() => {
     if (user) {
       fetchFields();
     }
   }, [user]);
+
   useEffect(() => {
     if (selectedField) {
       fetchReports(selectedField.id);
     }
   }, [selectedField]);
+
   const fetchFields = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from("fields").select("*").order("created_at", {
-        ascending: false
-      });
+      const { data, error } = await supabase
+        .from("fields")
+        .select("*")
+        .order("created_at", { ascending: false });
+
       if (error) throw error;
       setFields(data || []);
       if (data && data.length > 0) {
@@ -88,22 +92,23 @@ const Dashboard = () => {
       }
     } catch (error) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: "Failed to load fields",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsLoadingFields(false);
     }
   };
+
   const fetchReports = async (fieldId: string) => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from("fertilizer_reports").select("*").eq("field_id", fieldId).order("report_date", {
-        ascending: false
-      });
+      const { data, error } = await supabase
+        .from("fertilizer_reports")
+        .select("*")
+        .eq("field_id", fieldId)
+        .order("report_date", { ascending: false });
+
       if (error) throw error;
       setReports(data || []);
       if (data && data.length > 0) {
@@ -123,17 +128,17 @@ const Dashboard = () => {
       }
     } catch (error) {
       toast({
-        title: "Error",
+        title: t("common.error"),
         description: "Failed to load reports",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
+
   const analyzeReport = async (report: Report) => {
     if (!selectedField) return;
     setIsAnalyzing(true);
     try {
-      // If report has a file, fetch it and convert to base64
       let fileBase64: string | null = null;
       if (report.file_url && report.file_type) {
         try {
@@ -149,10 +154,8 @@ const Dashboard = () => {
           console.error("Failed to fetch file for analysis:", e);
         }
       }
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke("analyze-soil", {
+
+      const { data, error } = await supabase.functions.invoke("analyze-soil", {
         body: {
           nitrogen: report.nitrogen,
           phosphorus: report.phosphorus,
@@ -165,26 +168,25 @@ const Dashboard = () => {
           location: selectedField.location,
           latitude: report.latitude,
           longitude: report.longitude,
-          preferredLanguage: report.preferred_language || 'auto',
+          preferredLanguage: report.preferred_language || "auto",
           fileBase64: fileBase64,
-          fileType: report.file_type
-        }
+          fileType: report.file_type,
+        },
       });
+
       if (error) throw error;
       if (data.success && data.analysis) {
         setAiAnalysis({
           ...data.analysis,
-          detectedLanguage: data.detectedLanguage
+          detectedLanguage: data.detectedLanguage,
         });
 
-        // Update report with extracted data if available
         const updateData: any = {
           ai_analysis: JSON.stringify(data.analysis),
           recommended_crops: data.analysis.recommendedCrops,
-          improvement_techniques: data.analysis.improvementTechniques?.map((t: any) => t.title)
+          improvement_techniques: data.analysis.improvementTechniques?.map((t: any) => t.title),
         };
 
-        // If AI extracted data from image, update the report values
         if (data.analysis.extractedData) {
           const extracted = data.analysis.extractedData;
           if (extracted.nitrogen != null) updateData.nitrogen = extracted.nitrogen;
@@ -194,39 +196,48 @@ const Dashboard = () => {
           if (extracted.organicMatter != null) updateData.organic_matter = extracted.organicMatter;
           if (extracted.moisture != null) updateData.moisture = extracted.moisture;
         }
+
         await supabase.from("fertilizer_reports").update(updateData).eq("id", report.id);
 
-        // Refresh reports to show extracted values
         if (selectedField) {
           fetchReports(selectedField.id);
         }
+
         toast({
-          title: "Analysis Complete",
-          description: data.detectedLanguage ? `AI analyzed your report in ${data.detectedLanguage.languageName}.` : "AI has analyzed your soil report with recommendations."
+          title: t("common.success"),
+          description: data.detectedLanguage
+            ? `AI analyzed your report in ${data.detectedLanguage.languageName}.`
+            : "AI has analyzed your soil report with recommendations.",
         });
       } else {
         throw new Error(data.error || "Analysis failed");
       }
     } catch (error: any) {
       toast({
-        title: "Analysis Failed",
+        title: t("common.error"),
         description: error.message || "Could not analyze the report",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setIsAnalyzing(false);
     }
   };
+
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
   };
+
   if (authLoading || isLoadingFields) {
-    return <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">{t("common.loading")}</div>
+      </div>
+    );
   }
-  return <div className="min-h-screen bg-background">
+
+  return (
+    <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="container max-w-6xl mx-auto px-4 py-4">
@@ -236,14 +247,17 @@ const Dashboard = () => {
                 <Sprout className="w-6 h-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="font-display text-xl font-bold text-foreground">KISAAN - Analysiser</h1>
-                <p className="text-xs text-muted-foreground">Dashboard - Namaste</p>
+                <h1 className="font-display text-xl font-bold text-foreground">{t("app.title")}</h1>
+                <p className="text-xs text-muted-foreground">{t("dashboard.welcome")}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
-            </Button>
+            <div className="flex items-center gap-3">
+              <LanguageSelector />
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                <LogOut className="w-4 h-4 mr-2" />
+                {t("dashboard.signOut")}
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -251,54 +265,94 @@ const Dashboard = () => {
       <main className="container max-w-6xl mx-auto px-4 py-8">
         {/* Field Selector */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
-          {fields.map(field => <button key={field.id} onClick={() => setSelectedField(field)} className={`px-4 py-2 rounded-lg border transition-all ${selectedField?.id === field.id ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border hover:border-primary/50"}`}>
+          {fields.map((field) => (
+            <button
+              key={field.id}
+              onClick={() => setSelectedField(field)}
+              className={`px-4 py-2 rounded-lg border transition-all ${
+                selectedField?.id === field.id
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border hover:border-primary/50"
+              }`}
+            >
               <MapPin className="w-4 h-4 inline mr-2" />
               {field.name}
-            </button>)}
+            </button>
+          ))}
           <Button variant="outline" size="sm" onClick={() => setShowAddField(true)}>
             <Plus className="w-4 h-4 mr-1" />
-            Add Field
+            {t("dashboard.addField")}
           </Button>
         </div>
 
-        {selectedField ? <div className="space-y-6">
-            <FieldHeader fieldName={selectedField.name} location={selectedField.location || "Location not set"} reportDate={selectedReport?.report_date || "No reports yet"} acres={selectedField.acres || 0} />
+        {selectedField ? (
+          <div className="space-y-6">
+            <FieldHeader
+              fieldName={selectedField.name}
+              location={selectedField.location || t("common.location")}
+              reportDate={selectedReport?.report_date || t("dashboard.noReports")}
+              acres={selectedField.acres || 0}
+            />
 
             {/* Report Selector & Add Button */}
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm text-muted-foreground">Reports:</span>
-              {reports.map(report => <button key={report.id} onClick={() => {
-            setSelectedReport(report);
-            if (report.ai_analysis) {
-              try {
-                setAiAnalysis(JSON.parse(report.ai_analysis));
-              } catch {
-                setAiAnalysis(null);
-              }
-            } else {
-              setAiAnalysis(null);
-            }
-          }} className={`px-3 py-1.5 rounded-md text-sm transition-all ${selectedReport?.id === report.id ? "bg-accent text-accent-foreground" : "bg-muted hover:bg-muted/80"}`}>
+              <span className="text-sm text-muted-foreground">{t("dashboard.reports")}:</span>
+              {reports.map((report) => (
+                <button
+                  key={report.id}
+                  onClick={() => {
+                    setSelectedReport(report);
+                    if (report.ai_analysis) {
+                      try {
+                        setAiAnalysis(JSON.parse(report.ai_analysis));
+                      } catch {
+                        setAiAnalysis(null);
+                      }
+                    } else {
+                      setAiAnalysis(null);
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-md text-sm transition-all ${
+                    selectedReport?.id === report.id
+                      ? "bg-accent text-accent-foreground"
+                      : "bg-muted hover:bg-muted/80"
+                  }`}
+                >
                   {new Date(report.report_date).toLocaleDateString()}
-                </button>)}
+                </button>
+              ))}
               <Button variant="outline" size="sm" onClick={() => setShowAddReport(true)}>
                 <Plus className="w-4 h-4 mr-1" />
-                Add Report
+                {t("dashboard.addReport")}
               </Button>
             </div>
 
-            {selectedReport ? <div className="grid lg:grid-cols-3 gap-6">
+            {selectedReport ? (
+              <div className="grid lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-6">
-                  <SoilHealthCard ph={selectedReport.ph || 7} organicMatter={selectedReport.organic_matter || 0} moisture={selectedReport.moisture || 0} temperature={selectedReport.temperature || 20} />
-                  
+                  <SoilHealthCard
+                    ph={selectedReport.ph || 7}
+                    organicMatter={selectedReport.organic_matter || 0}
+                    moisture={selectedReport.moisture || 0}
+                    temperature={selectedReport.temperature || 20}
+                  />
+
                   {/* AI Analysis Button */}
-                  <Button className="w-full" onClick={() => analyzeReport(selectedReport)} disabled={isAnalyzing}>
-                    {isAnalyzing ? "Analyzing..." : aiAnalysis ? "Re-Analyze with AI" : "Analyze with AI"}
+                  <Button
+                    className="w-full"
+                    onClick={() => analyzeReport(selectedReport)}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing
+                      ? t("dashboard.analyzing")
+                      : aiAnalysis
+                      ? t("dashboard.analyzeWithAI")
+                      : t("dashboard.analyzeWithAI")}
                   </Button>
 
                   {aiAnalysis && (
-                    <AIAnalysisCard 
-                      analysis={aiAnalysis} 
+                    <AIAnalysisCard
+                      analysis={aiAnalysis}
                       detectedLanguage={aiAnalysis.detectedLanguage}
                       fieldName={selectedField.name}
                       location={selectedField.location || "Unknown"}
@@ -317,54 +371,85 @@ const Dashboard = () => {
                 </div>
 
                 <div className="lg:col-span-2 space-y-6">
-                  <h2 className="font-display text-xl font-bold text-foreground">NPK Nutrient Levels</h2>
+                  <h2 className="font-display text-xl font-bold text-foreground">
+                    {t("ai.npkAnalysis")}
+                  </h2>
                   <div className="grid sm:grid-cols-3 gap-4">
-                    <NutrientGauge label="Nitrogen (N)" value={selectedReport.nitrogen || 0} unit="ppm" min={0} max={100} optimal={{
-                min: 25,
-                max: 50
-              }} color="nitrogen" />
-                    <NutrientGauge label="Phosphorus (P)" value={selectedReport.phosphorus || 0} unit="ppm" min={0} max={60} optimal={{
-                min: 15,
-                max: 30
-              }} color="phosphorus" />
-                    <NutrientGauge label="Potassium (K)" value={selectedReport.potassium || 0} unit="ppm" min={0} max={400} optimal={{
-                min: 120,
-                max: 250
-              }} color="potassium" />
+                    <NutrientGauge
+                      label={t("soil.nitrogen") + " (N)"}
+                      value={selectedReport.nitrogen || 0}
+                      unit="ppm"
+                      min={0}
+                      max={100}
+                      optimal={{ min: 25, max: 50 }}
+                      color="nitrogen"
+                    />
+                    <NutrientGauge
+                      label={t("soil.phosphorus") + " (P)"}
+                      value={selectedReport.phosphorus || 0}
+                      unit="ppm"
+                      min={0}
+                      max={60}
+                      optimal={{ min: 15, max: 30 }}
+                      color="phosphorus"
+                    />
+                    <NutrientGauge
+                      label={t("soil.potassium") + " (K)"}
+                      value={selectedReport.potassium || 0}
+                      unit="ppm"
+                      min={0}
+                      max={400}
+                      optimal={{ min: 120, max: 250 }}
+                      color="potassium"
+                    />
                   </div>
 
-                  {aiAnalysis?.improvementTechniques && <RecommendationCard recommendations={aiAnalysis.improvementTechniques.map((t: any, i: number) => ({
-              id: String(i),
-              title: t.title,
-              description: t.description,
-              priority: t.priority
-            }))} />}
+                  {aiAnalysis?.improvementTechniques && (
+                    <RecommendationCard
+                      recommendations={aiAnalysis.improvementTechniques.map((t: any, i: number) => ({
+                        id: String(i),
+                        title: t.title,
+                        description: t.description,
+                        priority: t.priority,
+                      }))}
+                    />
+                  )}
                 </div>
-              </div> : <div className="text-center py-12 bg-card rounded-xl">
-                <p className="text-muted-foreground mb-4">No reports for this field yet.</p>
+              </div>
+            ) : (
+              <div className="text-center py-12 bg-card rounded-xl">
+                <p className="text-muted-foreground mb-4">{t("dashboard.noReports")}</p>
                 <Button onClick={() => setShowAddReport(true)}>
                   <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Report
+                  {t("dashboard.addFirstReport")}
                 </Button>
-              </div>}
-          </div> : <div className="text-center py-16 bg-card rounded-xl animate-fade-up">
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-center py-16 bg-card rounded-xl animate-fade-up">
             <Sprout className="w-16 h-16 mx-auto text-primary mb-4" />
             <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-              Welcome to SoilSense
+              {t("dashboard.welcome")}
             </h2>
-            <p className="text-muted-foreground mb-6">
-              Start by adding your first field to track soil health
-            </p>
+            <p className="text-muted-foreground mb-6">{t("dashboard.addFirstField")}</p>
             <Button onClick={() => setShowAddField(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Add Your First Field
+              {t("dashboard.addField")}
             </Button>
-          </div>}
+          </div>
+        )}
       </main>
 
       <AddFieldDialog open={showAddField} onOpenChange={setShowAddField} onFieldAdded={fetchFields} />
-
-      <AddReportDialog open={showAddReport} onOpenChange={setShowAddReport} fieldId={selectedField?.id || ""} onReportAdded={() => selectedField && fetchReports(selectedField.id)} />
-    </div>;
+      <AddReportDialog
+        open={showAddReport}
+        onOpenChange={setShowAddReport}
+        fieldId={selectedField?.id || ""}
+        onReportAdded={() => selectedField && fetchReports(selectedField.id)}
+      />
+    </div>
+  );
 };
+
 export default Dashboard;
