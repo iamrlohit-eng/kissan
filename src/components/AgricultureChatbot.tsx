@@ -1,31 +1,170 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, User, Loader2 } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Loader2, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+// Web Speech API types
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
+// Language code mapping for Web Speech API
+const speechLanguageMap: Record<string, string> = {
+  en: "en-US",
+  hi: "hi-IN",
+  ta: "ta-IN",
+  te: "te-IN",
+  kn: "kn-IN",
+  mr: "mr-IN",
+  gu: "gu-IN",
+  bn: "bn-IN",
+  pa: "pa-IN",
+  es: "es-ES",
+  pt: "pt-BR",
+  fr: "fr-FR",
+  de: "de-DE",
+  ar: "ar-SA",
+  ja: "ja-JP",
+  ko: "ko-KR",
+  ru: "ru-RU",
+  zh: "zh-CN",
+  it: "it-IT",
+  nl: "nl-NL",
+  pl: "pl-PL",
+  th: "th-TH",
+  vi: "vi-VN",
+  id: "id-ID",
+  ms: "ms-MY",
+  sw: "sw-KE",
+  ur: "ur-PK",
+};
+
 export const AgricultureChatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { language, t } = useLanguage();
   const { toast } = useToast();
+
+  // Check if browser supports speech recognition
+  const isSpeechSupported = typeof window !== "undefined" && 
+    ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (!isSpeechSupported) return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = speechLanguageMap[language] || "en-US";
+
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join("");
+      
+      setInput(transcript);
+
+      // If this is a final result, stop listening
+      if (event.results[event.results.length - 1].isFinal) {
+        setIsListening(false);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech recognition error:", event.error);
+      setIsListening(false);
+      
+      if (event.error === "not-allowed") {
+        toast({
+          title: t("error") || "Error",
+          description: "Microphone access denied. Please enable microphone permissions.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.abort();
+    };
+  }, [language, toast, t, isSpeechSupported]);
+
+  // Update recognition language when app language changes
+  useEffect(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = speechLanguageMap[language] || "en-US";
+    }
+  }, [language]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: t("error") || "Error",
+        description: "Speech recognition is not supported in your browser.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setInput("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -49,7 +188,7 @@ export const AgricultureChatbot = () => {
           body: JSON.stringify({
             message: userMessage,
             language,
-            conversationHistory: messages.slice(-10), // Keep last 10 messages for context
+            conversationHistory: messages.slice(-10),
           }),
         }
       );
@@ -66,7 +205,6 @@ export const AgricultureChatbot = () => {
         throw new Error("No response body");
       }
 
-      // Add empty assistant message to update
       setMessages(prev => [...prev, { role: "assistant", content: "" }]);
 
       let textBuffer = "";
@@ -112,7 +250,6 @@ export const AgricultureChatbot = () => {
         description: error instanceof Error ? error.message : "Failed to send message",
         variant: "destructive",
       });
-      // Remove the empty assistant message if there was an error
       if (!assistantContent) {
         setMessages(prev => prev.slice(0, -1));
       }
@@ -130,13 +267,13 @@ export const AgricultureChatbot = () => {
 
   const getWelcomeMessage = () => {
     const welcomeMessages: Record<string, string> = {
-      en: "Hello! I'm your agriculture assistant. Ask me anything about farming, crops, soil health, pest control, and more!",
-      hi: "नमस्ते! मैं आपका कृषि सहायक हूं। खेती, फसलों, मिट्टी की सेहत, कीट नियंत्रण और अन्य विषयों पर मुझसे कुछ भी पूछें!",
-      ta: "வணக்கம்! நான் உங்கள் விவசாய உதவியாளர். விவசாயம், பயிர்கள், மண் ஆரோக்கியம், பூச்சி கட்டுப்பாடு மற்றும் பலவற்றைப் பற்றி என்னிடம் கேளுங்கள்!",
-      te: "నమస్కారం! నేను మీ వ్యవసాయ సహాయకుడిని. వ్యవసాయం, పంటలు, నేల ఆరోగ్యం, పురుగుల నియంత్రణ మరియు మరిన్ని విషయాలపై నన్ను అడగండి!",
-      es: "¡Hola! Soy tu asistente agrícola. ¡Pregúntame sobre cultivos, salud del suelo, control de plagas y más!",
-      fr: "Bonjour! Je suis votre assistant agricole. Posez-moi des questions sur l'agriculture, les cultures, la santé des sols et plus encore!",
-      de: "Hallo! Ich bin Ihr Landwirtschaftsassistent. Fragen Sie mich alles über Landwirtschaft, Kulturen, Bodengesundheit und mehr!",
+      en: "Hello! I'm your agriculture assistant. Ask me anything about farming, crops, soil health, pest control, and more! You can also use the microphone to speak your question.",
+      hi: "नमस्ते! मैं आपका कृषि सहायक हूं। खेती, फसलों, मिट्टी की सेहत, कीट नियंत्रण और अन्य विषयों पर मुझसे कुछ भी पूछें! आप माइक्रोफोन का उपयोग करके भी बोल सकते हैं।",
+      ta: "வணக்கம்! நான் உங்கள் விவசாய உதவியாளர். விவசாயம், பயிர்கள், மண் ஆரோக்கியம், பூச்சி கட்டுப்பாடு மற்றும் பலவற்றைப் பற்றி என்னிடம் கேளுங்கள்! மைக்ரோஃபோனைப் பயன்படுத்தியும் பேசலாம்।",
+      te: "నమస్కారం! నేను మీ వ్యవసాయ సహాయకుడిని. వ్యవసాయం, పంటలు, నేల ఆరోగ్యం, పురుగుల నియంత్రణ మరియు మరిన్ని విషయాలపై నన్ను అడగండి! మీరు మైక్రోఫోన్ ఉపయోగించి కూడా మాట్లాడవచ్చు।",
+      es: "¡Hola! Soy tu asistente agrícola. ¡Pregúntame sobre cultivos, salud del suelo, control de plagas y más! También puedes usar el micrófono para hablar.",
+      fr: "Bonjour! Je suis votre assistant agricole. Posez-moi des questions sur l'agriculture, les cultures, la santé des sols et plus encore! Vous pouvez aussi utiliser le microphone.",
+      de: "Hallo! Ich bin Ihr Landwirtschaftsassistent. Fragen Sie mich alles über Landwirtschaft, Kulturen, Bodengesundheit und mehr! Sie können auch das Mikrofon benutzen.",
     };
     return welcomeMessages[language] || welcomeMessages.en;
   };
@@ -221,11 +358,27 @@ export const AgricultureChatbot = () => {
           {/* Input */}
           <div className="p-4 border-t">
             <div className="flex gap-2">
+              {isSpeechSupported && (
+                <Button
+                  onClick={toggleListening}
+                  disabled={isLoading}
+                  size="icon"
+                  variant={isListening ? "destructive" : "outline"}
+                  className={isListening ? "animate-pulse" : ""}
+                  title={isListening ? "Stop listening" : "Speak your question"}
+                >
+                  {isListening ? (
+                    <MicOff className="h-4 w-4" />
+                  ) : (
+                    <Mic className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={t("askQuestion") || "Ask your question..."}
+                placeholder={isListening ? "Listening..." : (t("askQuestion") || "Ask your question...")}
                 disabled={isLoading}
                 className="flex-1"
               />
@@ -237,6 +390,11 @@ export const AgricultureChatbot = () => {
                 )}
               </Button>
             </div>
+            {isListening && (
+              <p className="text-xs text-muted-foreground mt-2 text-center animate-pulse">
+                🎤 Listening... Speak now
+              </p>
+            )}
           </div>
         </div>
       )}
