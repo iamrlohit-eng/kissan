@@ -115,6 +115,15 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     "common.acres": "acres",
     "common.location": "Location",
     "common.date": "Date",
+    
+    // Chatbot
+    "chatbot.askQuestion": "Ask your question...",
+    "chatbot.aiAssistant": "Agriculture Assistant",
+    "chatbot.analyzing": "Thinking...",
+    "error": "Error",
+    "askQuestion": "Ask your question...",
+    "aiAssistant": "Agriculture Assistant",
+    "analyzing": "Thinking...",
   },
   hi: {
     "app.title": "किसान - विश्लेषक",
@@ -183,6 +192,15 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     "common.acres": "एकड़",
     "common.location": "स्थान",
     "common.date": "तारीख",
+    
+    // Chatbot
+    "chatbot.askQuestion": "अपना प्रश्न पूछें...",
+    "chatbot.aiAssistant": "कृषि सहायक",
+    "chatbot.analyzing": "सोच रहा हूं...",
+    "error": "त्रुटि",
+    "askQuestion": "अपना प्रश्न पूछें...",
+    "aiAssistant": "कृषि सहायक",
+    "analyzing": "सोच रहा हूं...",
   },
   ta: {
     "app.title": "கிசான் - பகுப்பாய்வி",

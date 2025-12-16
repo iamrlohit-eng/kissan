@@ -13,6 +13,7 @@ import { RecommendationCard } from "@/components/RecommendationCard";
 import { AddFieldDialog } from "@/components/AddFieldDialog";
 import { AddReportDialog } from "@/components/AddReportDialog";
 import { AIAnalysisCard } from "@/components/AIAnalysisCard";
+import { AgricultureChatbot } from "@/components/AgricultureChatbot";
 import { Sprout, Plus, LogOut, MapPin } from "lucide-react";
 
 interface Field {
@@ -448,6 +449,7 @@ const Dashboard = () => {
         fieldId={selectedField?.id || ""}
         onReportAdded={() => selectedField && fetchReports(selectedField.id)}
       />
+      <AgricultureChatbot />
     </div>
   );
 };
