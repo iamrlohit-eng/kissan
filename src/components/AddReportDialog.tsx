@@ -17,7 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, FileText, MapPin, Loader2 } from "lucide-react";
 
 interface AddReportDialogProps {
@@ -50,13 +49,6 @@ const LANGUAGES = [
 ];
 
 export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: AddReportDialogProps) => {
-  const [nitrogen, setNitrogen] = useState("");
-  const [phosphorus, setPhosphorus] = useState("");
-  const [potassium, setPotassium] = useState("");
-  const [ph, setPh] = useState("");
-  const [organicMatter, setOrganicMatter] = useState("");
-  const [moisture, setMoisture] = useState("");
-  const [temperature, setTemperature] = useState("");
   const [reportDate, setReportDate] = useState(new Date().toISOString().split("T")[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -65,7 +57,6 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("auto");
-  const [uploadMode, setUploadMode] = useState<"manual" | "file">("manual");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -144,61 +135,48 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!selectedFile) {
+      toast({
+        title: "No File Selected",
+        description: "Please upload a soil report document.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      let fileUrl: string | null = null;
-      let fileType: string | null = null;
-      let fileBase64: string | null = null;
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('report-files')
+        .upload(fileName, selectedFile);
 
-      // Upload file if selected
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop();
-        const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('report-files')
-          .upload(fileName, selectedFile);
+      if (uploadError) throw uploadError;
 
-        if (uploadError) throw uploadError;
+      // Use signed URL since bucket is private
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('report-files')
+        .createSignedUrl(fileName, 86400); // 24 hours expiry
 
-        // Use signed URL since bucket is private
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-          .from('report-files')
-          .createSignedUrl(fileName, 86400); // 24 hours expiry
-
-        if (signedUrlError) throw signedUrlError;
-        fileUrl = signedUrlData.signedUrl;
-        fileType = selectedFile.type;
-        fileBase64 = await fileToBase64(selectedFile);
-      }
+      if (signedUrlError) throw signedUrlError;
+      
+      const fileUrl = signedUrlData.signedUrl;
+      const fileType = selectedFile.type;
 
       // Create the report
       const { data: report, error } = await supabase.from("fertilizer_reports").insert({
         field_id: fieldId,
         user_id: user.id,
         report_date: reportDate,
-        nitrogen: nitrogen ? parseFloat(nitrogen) : null,
-        phosphorus: phosphorus ? parseFloat(phosphorus) : null,
-        potassium: potassium ? parseFloat(potassium) : null,
-        ph: ph ? parseFloat(ph) : null,
-        organic_matter: organicMatter ? parseFloat(organicMatter) : null,
-        moisture: moisture ? parseFloat(moisture) : null,
-        temperature: temperature ? parseFloat(temperature) : null,
         file_url: fileUrl,
         file_type: fileType,
         latitude: latitude,
@@ -209,10 +187,8 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
       if (error) throw error;
 
       toast({
-        title: "Report Added",
-        description: uploadMode === "file" 
-          ? "Your report has been uploaded. Click 'Analyze with AI' to process it."
-          : "Your fertilizer report has been saved.",
+        title: "Report Uploaded",
+        description: "Your report has been uploaded. Click 'Analyze with AI' to process it.",
       });
 
       // Reset form
@@ -222,7 +198,7 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add report",
+        description: error.message || "Failed to upload report",
         variant: "destructive",
       });
     } finally {
@@ -231,23 +207,15 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
   };
 
   const resetForm = () => {
-    setNitrogen("");
-    setPhosphorus("");
-    setPotassium("");
-    setPh("");
-    setOrganicMatter("");
-    setMoisture("");
-    setTemperature("");
     setSelectedFile(null);
     setFilePreview(null);
-    setUploadMode("manual");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">Add Fertilizer Report</DialogTitle>
+          <DialogTitle className="font-display">Upload Soil Report</DialogTitle>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -305,143 +273,44 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
             </Button>
           </div>
 
-          {/* Input Mode Tabs */}
-          <Tabs value={uploadMode} onValueChange={(v) => setUploadMode(v as "manual" | "file")}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-              <TabsTrigger value="file">Upload Report</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="file" className="space-y-4 mt-4">
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                
-                {filePreview ? (
-                  <img src={filePreview} alt="Preview" className="max-h-32 mx-auto rounded-lg mb-2" />
-                ) : selectedFile ? (
-                  <div className="flex items-center justify-center gap-2 text-primary">
-                    <FileText className="w-8 h-8" />
-                    <span className="font-medium">{selectedFile.name}</span>
-                  </div>
-                ) : (
-                  <>
-                    <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-                    <p className="font-medium text-foreground">Upload Soil Report</p>
-                    <p className="text-sm text-muted-foreground">PDF, JPG, PNG, or WebP (max 10MB)</p>
-                  </>
-                )}
+          {/* File Upload */}
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            
+            {filePreview ? (
+              <img src={filePreview} alt="Preview" className="max-h-32 mx-auto rounded-lg mb-2" />
+            ) : selectedFile ? (
+              <div className="flex items-center justify-center gap-2 text-primary">
+                <FileText className="w-8 h-8" />
+                <span className="font-medium">{selectedFile.name}</span>
               </div>
-              <p className="text-xs text-muted-foreground text-center">
-                AI will automatically extract NPK values and other data from your report
-              </p>
-            </TabsContent>
-
-            <TabsContent value="manual" className="space-y-4 mt-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nitrogen">Nitrogen (ppm)</Label>
-                  <Input
-                    id="nitrogen"
-                    type="number"
-                    step="0.1"
-                    placeholder="35"
-                    value={nitrogen}
-                    onChange={(e) => setNitrogen(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phosphorus">Phosphorus (ppm)</Label>
-                  <Input
-                    id="phosphorus"
-                    type="number"
-                    step="0.1"
-                    placeholder="18"
-                    value={phosphorus}
-                    onChange={(e) => setPhosphorus(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="potassium">Potassium (ppm)</Label>
-                  <Input
-                    id="potassium"
-                    type="number"
-                    step="0.1"
-                    placeholder="180"
-                    value={potassium}
-                    onChange={(e) => setPotassium(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="ph">pH Level</Label>
-                  <Input
-                    id="ph"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="14"
-                    placeholder="6.5"
-                    value={ph}
-                    onChange={(e) => setPh(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="organicMatter">Organic Matter (%)</Label>
-                  <Input
-                    id="organicMatter"
-                    type="number"
-                    step="0.1"
-                    placeholder="3.2"
-                    value={organicMatter}
-                    onChange={(e) => setOrganicMatter(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="moisture">Moisture (%)</Label>
-                  <Input
-                    id="moisture"
-                    type="number"
-                    step="0.1"
-                    placeholder="42"
-                    value={moisture}
-                    onChange={(e) => setMoisture(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="temperature">Temperature (°C)</Label>
-                  <Input
-                    id="temperature"
-                    type="number"
-                    step="0.1"
-                    placeholder="18"
-                    value={temperature}
-                    onChange={(e) => setTemperature(e.target.value)}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+            ) : (
+              <>
+                <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
+                <p className="font-medium text-foreground">Upload Soil Report</p>
+                <p className="text-sm text-muted-foreground">PDF, JPG, PNG, or WebP (max 10MB)</p>
+              </>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            AI will automatically extract NPK values and other data from your report
+          </p>
 
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Saving..." : "Save Report"}
+            <Button type="submit" disabled={isLoading || !selectedFile}>
+              {isLoading ? "Uploading..." : "Upload Report"}
             </Button>
           </div>
         </form>
