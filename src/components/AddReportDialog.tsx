@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Upload, FileText, MapPin, Loader2 } from "lucide-react";
+import { Upload, FileText, MapPin, Loader2, Camera } from "lucide-react";
 
 interface AddReportDialogProps {
   open: boolean;
@@ -58,6 +58,7 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const [preferredLanguage, setPreferredLanguage] = useState("auto");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Get GPS location on mount
@@ -273,34 +274,67 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
             </Button>
           </div>
 
-          {/* File Upload */}
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            
-            {filePreview ? (
-              <img src={filePreview} alt="Preview" className="max-h-32 mx-auto rounded-lg mb-2" />
-            ) : selectedFile ? (
-              <div className="flex items-center justify-center gap-2 text-primary">
-                <FileText className="w-8 h-8" />
-                <span className="font-medium">{selectedFile.name}</span>
-              </div>
-            ) : (
-              <>
-                <Upload className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
-                <p className="font-medium text-foreground">Upload Soil Report</p>
-                <p className="text-sm text-muted-foreground">PDF, JPG, PNG, or WebP (max 10MB)</p>
-              </>
-            )}
+          {/* Upload Options */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Camera Capture */}
+            <div
+              onClick={() => cameraInputRef.current?.click()}
+              className="border-2 border-dashed border-border rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+            >
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <Camera className="w-8 h-8 mx-auto text-primary mb-2" />
+              <p className="font-medium text-foreground text-sm">Take Photo</p>
+              <p className="text-xs text-muted-foreground">Use camera</p>
+            </div>
+
+            {/* File Upload */}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-border rounded-xl p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="font-medium text-foreground text-sm">Upload File</p>
+              <p className="text-xs text-muted-foreground">PDF, JPG, PNG</p>
+            </div>
           </div>
+
+          {/* Preview */}
+          {(filePreview || selectedFile) && (
+            <div className="border border-border rounded-xl p-4 text-center">
+              {filePreview ? (
+                <img src={filePreview} alt="Preview" className="max-h-32 mx-auto rounded-lg mb-2" />
+              ) : selectedFile ? (
+                <div className="flex items-center justify-center gap-2 text-primary">
+                  <FileText className="w-8 h-8" />
+                  <span className="font-medium">{selectedFile.name}</span>
+                </div>
+              ) : null}
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="sm" 
+                onClick={resetForm}
+                className="mt-2 text-muted-foreground"
+              >
+                Remove
+              </Button>
+            </div>
+          )}
+
           <p className="text-xs text-muted-foreground text-center">
             AI will automatically extract NPK values and other data from your report
           </p>
