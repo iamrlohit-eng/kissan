@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useAdmin } from "@/hooks/useAdmin";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,9 +30,12 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Bell
+  Bell,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
+
+const MAIN_ADMIN_EMAIL = 'iamrlohit@gmail.com';
 
 interface UserRecord {
   user_id: string;
@@ -56,7 +58,6 @@ interface AdminRequest {
 const Admin = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
-  const { isAdmin, isLoading: adminLoading } = useAdmin();
   const { toast } = useToast();
   
   const [users, setUsers] = useState<UserRecord[]>([]);
@@ -67,6 +68,9 @@ const Admin = () => {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
+  // Check if current user is the main admin
+  const isMainAdmin = user?.email?.toLowerCase() === MAIN_ADMIN_EMAIL.toLowerCase();
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -74,17 +78,42 @@ const Admin = () => {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (!adminLoading && !isAdmin && user) {
+    if (!authLoading && user && !isMainAdmin) {
+      toast({
+        title: "Access Denied",
+        description: "Only the main admin can access this portal",
+        variant: "destructive",
+      });
       navigate("/dashboard");
     }
-  }, [isAdmin, adminLoading, user, navigate]);
+  }, [isMainAdmin, authLoading, user, navigate, toast]);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isMainAdmin) {
       fetchUsersWithLoginInfo();
       fetchRequests();
+      
+      // Set up real-time subscription for admin requests
+      const channel = supabase
+        .channel('admin-requests-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'admin_requests'
+          },
+          () => {
+            fetchRequests();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  }, [isAdmin]);
+  }, [isMainAdmin]);
 
   const fetchUsersWithLoginInfo = async () => {
     setIsLoadingUsers(true);
@@ -145,7 +174,6 @@ const Admin = () => {
   const approveRequest = async (request: AdminRequest) => {
     setProcessingRequestId(request.id);
     try {
-      // Update request status
       const { error: updateError } = await supabase
         .from('admin_requests')
         .update({ 
@@ -157,14 +185,12 @@ const Admin = () => {
 
       if (updateError) throw updateError;
 
-      // Add admin role
       const { error: roleError } = await supabase
         .from('user_roles')
         .insert({ user_id: request.user_id, role: 'admin' });
 
       if (roleError && !roleError.message.includes('duplicate')) throw roleError;
 
-      // Send email notification
       await supabase.functions.invoke('send-notification', {
         body: {
           type: 'request_approved',
@@ -205,7 +231,6 @@ const Admin = () => {
 
       if (error) throw error;
 
-      // Send email notification
       await supabase.functions.invoke('send-notification', {
         body: {
           type: 'request_rejected',
@@ -259,10 +284,10 @@ const Admin = () => {
   };
 
   const demoteFromAdmin = async (userId: string, userEmail: string) => {
-    if (userId === user?.id) {
+    if (userEmail.toLowerCase() === MAIN_ADMIN_EMAIL.toLowerCase()) {
       toast({
         title: "Error",
-        description: "You cannot demote yourself",
+        description: "Cannot demote the main admin",
         variant: "destructive",
       });
       return;
@@ -303,21 +328,21 @@ const Admin = () => {
 
   const pendingRequests = requests.filter(r => r.status === 'pending');
 
-  if (authLoading || adminLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
       </div>
     );
   }
 
-  if (!isAdmin) {
+  if (!isMainAdmin) {
     return null;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header with Notification Bell */}
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -329,12 +354,26 @@ const Admin = () => {
               <h1 className="text-xl font-bold text-foreground">Admin Panel</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {pendingRequests.length > 0 && (
-              <Badge className="bg-amber-500 text-white">
-                {pendingRequests.length} pending
-              </Badge>
-            )}
+          <div className="flex items-center gap-3">
+            {/* Notification Bell */}
+            <div className="relative">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className={pendingRequests.length > 0 ? "animate-pulse" : ""}
+                onClick={() => {
+                  const element = document.querySelector('[data-value="requests"]');
+                  if (element instanceof HTMLElement) element.click();
+                }}
+              >
+                <Bell className={`w-5 h-5 ${pendingRequests.length > 0 ? 'text-amber-500' : 'text-muted-foreground'}`} />
+              </Button>
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                  {pendingRequests.length}
+                </span>
+              )}
+            </div>
             <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
               Main Admin
             </Badge>
@@ -344,7 +383,7 @@ const Admin = () => {
 
       <main className="max-w-5xl mx-auto px-4 py-6">
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
@@ -369,14 +408,16 @@ const Admin = () => {
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className={pendingRequests.length > 0 ? "border-amber-300 bg-amber-50/50" : ""}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Pending Requests</p>
-                  <p className="text-2xl font-bold text-foreground">{pendingRequests.length}</p>
+                  <p className={`text-2xl font-bold ${pendingRequests.length > 0 ? 'text-amber-600' : 'text-foreground'}`}>
+                    {pendingRequests.length}
+                  </p>
                 </div>
-                <Bell className="w-8 h-8 text-amber-500 opacity-50" />
+                <Bell className={`w-8 h-8 ${pendingRequests.length > 0 ? 'text-amber-500' : 'text-muted-foreground'} opacity-50`} />
               </div>
             </CardContent>
           </Card>
@@ -389,7 +430,7 @@ const Admin = () => {
               <Users className="w-4 h-4" />
               User Records
             </TabsTrigger>
-            <TabsTrigger value="requests" className="flex items-center gap-2">
+            <TabsTrigger value="requests" data-value="requests" className="flex items-center gap-2">
               <Bell className="w-4 h-4" />
               Requests
               {pendingRequests.length > 0 && (
@@ -426,7 +467,7 @@ const Admin = () => {
               <CardContent>
                 {isLoadingUsers ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -458,8 +499,8 @@ const Admin = () => {
                                   </div>
                                   <div>
                                     <span className="text-sm font-medium block">{u.email}</span>
-                                    {u.user_id === user?.id && (
-                                      <Badge variant="outline" className="text-xs mt-1">You</Badge>
+                                    {u.email.toLowerCase() === MAIN_ADMIN_EMAIL.toLowerCase() && (
+                                      <Badge variant="outline" className="text-xs mt-1 bg-primary/10 text-primary">Main Admin</Badge>
                                     )}
                                   </div>
                                 </div>
@@ -501,12 +542,14 @@ const Admin = () => {
                                 </div>
                               </TableCell>
                               <TableCell className="text-right">
-                                {u.role === 'admin' ? (
+                                {u.email.toLowerCase() === MAIN_ADMIN_EMAIL.toLowerCase() ? (
+                                  <Badge variant="outline" className="text-xs">Protected</Badge>
+                                ) : u.role === 'admin' ? (
                                   <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => demoteFromAdmin(u.user_id, u.email)}
-                                    disabled={updatingUserId === u.user_id || u.user_id === user?.id}
+                                    disabled={updatingUserId === u.user_id}
                                     className="text-orange-600 hover:text-orange-700"
                                   >
                                     {updatingUserId === u.user_id ? (
@@ -565,7 +608,7 @@ const Admin = () => {
               <CardContent>
                 {isLoadingRequests ? (
                   <div className="flex items-center justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                   </div>
                 ) : requests.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
