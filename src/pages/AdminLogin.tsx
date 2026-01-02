@@ -2,15 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, ArrowLeft, Loader2, Key } from "lucide-react";
-
-// Special admin access key - only you know this
-const ADMIN_ACCESS_KEY = "KISAAN2025ADMIN";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -54,30 +52,52 @@ const AdminLogin = () => {
       return;
     }
 
-    // Verify the special access key
-    if (accessKey.trim() === ADMIN_ACCESS_KEY) {
-      if (isAdmin) {
+    try {
+      // Verify the access key against backend
+      const { data, error } = await supabase.functions.invoke('verify-admin-key', {
+        body: { accessKey: accessKey.trim() }
+      });
+
+      if (error) {
         toast({
-          title: "Welcome Admin",
-          description: "Access granted to admin dashboard",
+          title: "Verification Failed",
+          description: "Could not verify access key. Please try again.",
+          variant: "destructive",
         });
-        navigate("/admin");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (data.valid) {
+        if (isAdmin) {
+          toast({
+            title: "Welcome Admin",
+            description: "Access granted to admin dashboard",
+          });
+          navigate("/admin");
+        } else {
+          toast({
+            title: "Access Denied",
+            description: "Your account does not have admin privileges. Contact the main admin to request access.",
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
-          title: "Access Denied",
-          description: "Your account does not have admin privileges. Contact the main admin to request access.",
+          title: "Invalid Key",
+          description: "The access key you entered is incorrect",
           variant: "destructive",
         });
       }
-    } else {
+    } catch (error) {
       toast({
-        title: "Invalid Key",
-        description: "The access key you entered is incorrect",
+        title: "Error",
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   if (authLoading || adminLoading) {
