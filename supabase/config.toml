@@ -5,3 +5,9 @@ verify_jwt = true
 
 [functions.agriculture-chat]
 verify_jwt = false
+
+[functions.verify-admin-key]
+verify_jwt = false
+
+[functions.get-location]
+verify_jwt = false

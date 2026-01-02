@@ -30,13 +30,35 @@ const Auth = () => {
   const { toast } = useToast();
   const { t } = useLanguage();
 
+  // Function to get user location
+  const getLocationOnLogin = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('get-location');
+      if (error) {
+        console.error('Error getting location:', error);
+        return { location: 'Unknown', locationData: {} };
+      }
+      return data;
+    } catch (err) {
+      console.error('Location fetch error:', err);
+      return { location: 'Unknown', locationData: {} };
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        // Log login activity
+        // Log login activity with location
         if (event === 'SIGNED_IN') {
-          setTimeout(() => {
-            logActivityDirect(session.user.id, session.user.email || null, 'login', 'User signed in');
+          setTimeout(async () => {
+            const locationInfo = await getLocationOnLogin();
+            logActivityDirect(
+              session.user.id, 
+              session.user.email || null, 
+              'login', 
+              `User signed in from ${locationInfo.location}`,
+              { location: locationInfo.location, ...locationInfo.locationData }
+            );
           }, 0);
         }
         navigate("/dashboard");
