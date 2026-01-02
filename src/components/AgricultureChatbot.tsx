@@ -6,7 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
-
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 // Web Speech API types
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
@@ -82,7 +83,7 @@ export const AgricultureChatbot = () => {
   const { language, t } = useLanguage();
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
-
+  const { user } = useAuth();
   // Check if browser supports speech recognition
   const isSpeechSupported = typeof window !== "undefined" && 
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
@@ -171,6 +172,16 @@ export const AgricultureChatbot = () => {
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
+    // Check if user is authenticated
+    if (!user) {
+      toast({
+        title: t("error") || "Error",
+        description: "Please sign in to use the chat assistant.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const userMessage = input.trim();
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: userMessage }]);
@@ -179,13 +190,19 @@ export const AgricultureChatbot = () => {
     let assistantContent = "";
 
     try {
+      // Get the user's session token for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Session expired. Please sign in again.");
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agriculture-chat`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             message: userMessage,
