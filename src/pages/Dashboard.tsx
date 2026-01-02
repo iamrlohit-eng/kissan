@@ -16,6 +16,7 @@ import { AddFieldDialog } from "@/components/AddFieldDialog";
 import { AddReportDialog } from "@/components/AddReportDialog";
 import { AIAnalysisCard } from "@/components/AIAnalysisCard";
 import { AgricultureChatbot } from "@/components/AgricultureChatbot";
+import { RequestAdminDialog } from "@/components/RequestAdminDialog";
 import { Sprout, Plus, LogOut, MapPin, Shield } from "lucide-react";
 
 interface Field {
@@ -271,13 +272,15 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <LanguageSelector />
-              {isAdmin && (
+              {isAdmin ? (
                 <Link to="/admin">
                   <Button variant="outline" size="sm">
                     <Shield className="w-4 h-4 mr-2" />
                     Admin
                   </Button>
                 </Link>
+              ) : (
+                <RequestAdminDialog />
               )}
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
