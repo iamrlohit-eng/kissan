@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          created_at: string
+          description: string | null
+          id: string
+          ip_address: string | null
+          metadata: Json | null
+          page_path: string | null
+          user_agent: string | null
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          activity_type: Database["public"]["Enums"]["activity_type"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          page_path?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          activity_type?: Database["public"]["Enums"]["activity_type"]
+          created_at?: string
+          description?: string | null
+          id?: string
+          ip_address?: string | null
+          metadata?: Json | null
+          page_path?: string | null
+          user_agent?: string | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       fertilizer_reports: {
         Row: {
           ai_analysis: string | null
@@ -154,15 +193,70 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      log_activity: {
+        Args: {
+          _activity_type: Database["public"]["Enums"]["activity_type"]
+          _description?: string
+          _ip_address?: string
+          _metadata?: Json
+          _page_path?: string
+          _user_agent?: string
+          _user_email: string
+          _user_id: string
+        }
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      activity_type:
+        | "login"
+        | "logout"
+        | "signup"
+        | "page_view"
+        | "field_create"
+        | "field_update"
+        | "field_delete"
+        | "report_create"
+        | "report_update"
+        | "report_delete"
+        | "report_upload"
+        | "ai_analysis"
+        | "ai_chat"
+        | "profile_update"
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -289,6 +383,24 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      activity_type: [
+        "login",
+        "logout",
+        "signup",
+        "page_view",
+        "field_create",
+        "field_update",
+        "field_delete",
+        "report_create",
+        "report_update",
+        "report_delete",
+        "report_upload",
+        "ai_analysis",
+        "ai_chat",
+        "profile_update",
+      ],
+      app_role: ["admin", "user"],
+    },
   },
 } as const

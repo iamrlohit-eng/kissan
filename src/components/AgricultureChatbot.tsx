@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 
 // Web Speech API types
 interface SpeechRecognitionEvent extends Event {
@@ -80,6 +81,7 @@ export const AgricultureChatbot = () => {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { language, t } = useLanguage();
   const { toast } = useToast();
+  const { logActivity } = useActivityLogger();
 
   // Check if browser supports speech recognition
   const isSpeechSupported = typeof window !== "undefined" && 
@@ -242,6 +244,15 @@ export const AgricultureChatbot = () => {
             // Incomplete JSON, will be handled in next chunk
           }
         }
+      }
+      
+      // Log AI chat activity after successful response
+      if (assistantContent) {
+        logActivity({
+          activityType: 'ai_chat',
+          description: 'User chatted with AI assistant',
+          metadata: { messageLength: userMessage.length }
+        });
       }
     } catch (error) {
       console.error("Chat error:", error);
