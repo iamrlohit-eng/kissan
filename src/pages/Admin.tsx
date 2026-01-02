@@ -15,6 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Shield, 
@@ -31,9 +38,21 @@ import {
   CheckCircle,
   XCircle,
   Bell,
-  Loader2
+  Loader2,
+  Activity,
+  LogIn,
+  FileText,
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  Bot,
+  MessageSquare
 } from "lucide-react";
 import { format } from "date-fns";
+import { Database } from "@/integrations/supabase/types";
+
+type ActivityType = Database["public"]["Enums"]["activity_type"];
 
 const MAIN_ADMIN_EMAIL = 'iamrlohit@gmail.com';
 
@@ -55,6 +74,35 @@ interface AdminRequest {
   created_at: string;
 }
 
+interface ActivityLog {
+  id: string;
+  user_id: string | null;
+  user_email: string | null;
+  activity_type: ActivityType;
+  description: string | null;
+  metadata: unknown;
+  created_at: string;
+  ip_address: string | null;
+  page_path: string | null;
+}
+
+const activityTypeLabels: Record<ActivityType, { label: string; icon: React.ReactNode; color: string }> = {
+  login: { label: "Login", icon: <LogIn className="w-4 h-4" />, color: "bg-blue-100 text-blue-700" },
+  logout: { label: "Logout", icon: <LogIn className="w-4 h-4 rotate-180" />, color: "bg-gray-100 text-gray-700" },
+  signup: { label: "Sign Up", icon: <User className="w-4 h-4" />, color: "bg-green-100 text-green-700" },
+  page_view: { label: "Page View", icon: <FileText className="w-4 h-4" />, color: "bg-purple-100 text-purple-700" },
+  field_create: { label: "Field Created", icon: <Plus className="w-4 h-4" />, color: "bg-emerald-100 text-emerald-700" },
+  field_update: { label: "Field Updated", icon: <Pencil className="w-4 h-4" />, color: "bg-yellow-100 text-yellow-700" },
+  field_delete: { label: "Field Deleted", icon: <Trash2 className="w-4 h-4" />, color: "bg-red-100 text-red-700" },
+  report_create: { label: "Report Created", icon: <Plus className="w-4 h-4" />, color: "bg-emerald-100 text-emerald-700" },
+  report_update: { label: "Report Updated", icon: <Pencil className="w-4 h-4" />, color: "bg-yellow-100 text-yellow-700" },
+  report_delete: { label: "Report Deleted", icon: <Trash2 className="w-4 h-4" />, color: "bg-red-100 text-red-700" },
+  report_upload: { label: "Report Uploaded", icon: <Upload className="w-4 h-4" />, color: "bg-indigo-100 text-indigo-700" },
+  ai_analysis: { label: "AI Analysis", icon: <Bot className="w-4 h-4" />, color: "bg-cyan-100 text-cyan-700" },
+  ai_chat: { label: "AI Chat", icon: <MessageSquare className="w-4 h-4" />, color: "bg-pink-100 text-pink-700" },
+  profile_update: { label: "Profile Updated", icon: <User className="w-4 h-4" />, color: "bg-orange-100 text-orange-700" },
+};
+
 const Admin = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
@@ -62,9 +110,13 @@ const Admin = () => {
   
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [requests, setRequests] = useState<AdminRequest[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [logSearchQuery, setLogSearchQuery] = useState("");
+  const [activityFilter, setActivityFilter] = useState<string>("all");
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
@@ -92,6 +144,7 @@ const Admin = () => {
     if (isMainAdmin) {
       fetchUsersWithLoginInfo();
       fetchRequests();
+      fetchActivityLogs();
       
       // Set up real-time subscription for admin requests
       const channel = supabase
@@ -109,8 +162,25 @@ const Admin = () => {
         )
         .subscribe();
 
+      // Set up real-time subscription for audit logs
+      const logsChannel = supabase
+        .channel('audit-logs-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'audit_logs'
+          },
+          () => {
+            fetchActivityLogs();
+          }
+        )
+        .subscribe();
+
       return () => {
         supabase.removeChannel(channel);
+        supabase.removeChannel(logsChannel);
       };
     }
   }, [isMainAdmin]);
@@ -168,6 +238,24 @@ const Admin = () => {
       console.error('Error fetching requests:', error);
     } finally {
       setIsLoadingRequests(false);
+    }
+  };
+
+  const fetchActivityLogs = async () => {
+    setIsLoadingLogs(true);
+    try {
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (error) throw error;
+      setActivityLogs(data || []);
+    } catch (error) {
+      console.error('Error fetching activity logs:', error);
+    } finally {
+      setIsLoadingLogs(false);
     }
   };
 
@@ -328,6 +416,21 @@ const Admin = () => {
 
   const pendingRequests = requests.filter(r => r.status === 'pending');
 
+  const filteredActivityLogs = activityLogs.filter(log => {
+    const matchesSearch = !logSearchQuery || 
+      log.user_email?.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+      log.description?.toLowerCase().includes(logSearchQuery.toLowerCase());
+    const matchesFilter = activityFilter === "all" || log.activity_type === activityFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const getLocationFromMetadata = (metadata: unknown): string => {
+    if (metadata && typeof metadata === 'object' && 'location' in metadata) {
+      return String((metadata as Record<string, unknown>).location) || 'Unknown';
+    }
+    return 'Unknown';
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -425,10 +528,14 @@ const Admin = () => {
 
         {/* Tabs */}
         <Tabs defaultValue={pendingRequests.length > 0 ? "requests" : "users"}>
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
-              User Records
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Activity Log
             </TabsTrigger>
             <TabsTrigger value="requests" data-value="requests" className="flex items-center gap-2">
               <Bell className="w-4 h-4" />
@@ -687,6 +794,121 @@ const Admin = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Activity Log Tab */}
+          <TabsContent value="activity">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="w-5 h-5" />
+                    Activity Log
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by email..."
+                        value={logSearchQuery}
+                        onChange={(e) => setLogSearchQuery(e.target.value)}
+                        className="pl-9 w-full sm:w-48"
+                      />
+                    </div>
+                    <Select value={activityFilter} onValueChange={setActivityFilter}>
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="Filter by type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Activities</SelectItem>
+                        <SelectItem value="login">Logins</SelectItem>
+                        <SelectItem value="signup">Sign Ups</SelectItem>
+                        <SelectItem value="field_create">Field Created</SelectItem>
+                        <SelectItem value="field_update">Field Updated</SelectItem>
+                        <SelectItem value="field_delete">Field Deleted</SelectItem>
+                        <SelectItem value="report_create">Report Created</SelectItem>
+                        <SelectItem value="report_upload">Report Uploaded</SelectItem>
+                        <SelectItem value="ai_analysis">AI Analysis</SelectItem>
+                        <SelectItem value="ai_chat">AI Chat</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="icon" onClick={fetchActivityLogs}>
+                      <RefreshCw className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingLogs ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                ) : filteredActivityLogs.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Activity className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <p>No activity logs found</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Activity</TableHead>
+                          <TableHead>User</TableHead>
+                          <TableHead>Date & Time</TableHead>
+                          <TableHead>Location</TableHead>
+                          <TableHead>Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredActivityLogs.map((log) => {
+                          const typeInfo = activityTypeLabels[log.activity_type];
+                          return (
+                            <TableRow key={log.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span className={`p-1.5 rounded ${typeInfo?.color || 'bg-gray-100 text-gray-700'}`}>
+                                    {typeInfo?.icon || <Activity className="w-4 h-4" />}
+                                  </span>
+                                  <span className="text-sm font-medium">
+                                    {typeInfo?.label || log.activity_type}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
+                                    <User className="w-3.5 h-3.5 text-primary" />
+                                  </div>
+                                  <span className="text-sm">{log.user_email || 'Anonymous'}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <Clock className="w-3 h-3" />
+                                  {format(new Date(log.created_at), 'MMM d, yyyy HH:mm')}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                  <MapPin className="w-3 h-3" />
+                                  {getLocationFromMetadata(log.metadata)}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-muted-foreground">
+                                  {log.description || '-'}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>
