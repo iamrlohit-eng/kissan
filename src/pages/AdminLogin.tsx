@@ -2,19 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, ArrowLeft, Loader2 } from "lucide-react";
-import { z } from "zod";
+import { Shield, ArrowLeft, Loader2, Key } from "lucide-react";
 
-const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-});
+// Special admin access key - only you know this
+const ADMIN_ACCESS_KEY = "KISAAN2025ADMIN";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
@@ -22,10 +18,8 @@ const AdminLogin = () => {
   const { isAdmin, isLoading: adminLoading } = useAdmin();
   const { toast } = useToast();
   
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [accessKey, setAccessKey] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   // Redirect if already logged in as admin
   useEffect(() => {
@@ -36,69 +30,54 @@ const AdminLogin = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrors({});
 
-    // Validate inputs
-    const validation = loginSchema.safeParse({ email, password });
-    if (!validation.success) {
-      const fieldErrors: { email?: string; password?: string } = {};
-      validation.error.errors.forEach((err) => {
-        if (err.path[0] === "email") fieldErrors.email = err.message;
-        if (err.path[0] === "password") fieldErrors.password = err.message;
+    if (!accessKey.trim()) {
+      toast({
+        title: "Access Key Required",
+        description: "Please enter your admin access key",
+        variant: "destructive",
       });
-      setErrors(fieldErrors);
       return;
     }
 
     setIsSubmitting(true);
 
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        toast({
-          title: "Login Failed",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (data.user) {
-        // Check if user is admin
-        const { data: roleData } = await supabase.rpc('has_role', {
-          _user_id: data.user.id,
-          _role: 'admin'
-        });
-
-        if (roleData) {
-          toast({
-            title: "Welcome Admin",
-            description: "You have been logged in successfully",
-          });
-          navigate("/admin");
-        } else {
-          // Not an admin - sign out and show error
-          await supabase.auth.signOut();
-          toast({
-            title: "Access Denied",
-            description: "This account does not have admin privileges",
-            variant: "destructive",
-          });
-        }
-      }
-    } catch (error) {
+    // Check if user is logged in first
+    if (!user) {
       toast({
-        title: "Error",
-        description: "An unexpected error occurred",
+        title: "Login Required",
+        description: "Please login to your account first, then access admin portal",
         variant: "destructive",
       });
-    } finally {
       setIsSubmitting(false);
+      navigate("/auth");
+      return;
     }
+
+    // Verify the special access key
+    if (accessKey.trim() === ADMIN_ACCESS_KEY) {
+      if (isAdmin) {
+        toast({
+          title: "Welcome Admin",
+          description: "Access granted to admin dashboard",
+        });
+        navigate("/admin");
+      } else {
+        toast({
+          title: "Access Denied",
+          description: "Your account does not have admin privileges. Contact the main admin to request access.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      toast({
+        title: "Invalid Key",
+        description: "The access key you entered is incorrect",
+        variant: "destructive",
+      });
+    }
+
+    setIsSubmitting(false);
   };
 
   if (authLoading || adminLoading) {
@@ -124,64 +103,50 @@ const AdminLogin = () => {
         <Card className="shadow-earth">
           <CardHeader className="text-center">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Shield className="w-8 h-8 text-primary" />
+              <Key className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold">Admin Login</CardTitle>
+            <CardTitle className="text-2xl font-bold">Admin Access</CardTitle>
             <CardDescription>
-              Sign in with your admin credentials to access the dashboard
+              Enter your special access key to access the admin panel
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="accessKey">Admin Access Key</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="accessKey"
+                  type="password"
+                  placeholder="Enter your secret key"
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
                   disabled={isSubmitting}
-                  className={errors.email ? "border-destructive" : ""}
                 />
-                {errors.email && (
-                  <p className="text-sm text-destructive">{errors.email}</p>
-                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  className={errors.password ? "border-destructive" : ""}
-                />
-                {errors.password && (
-                  <p className="text-sm text-destructive">{errors.password}</p>
-                )}
-              </div>
+              {!user && (
+                <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
+                  You need to login to your account first before accessing admin portal.
+                </p>
+              )}
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Signing in...
+                    Verifying...
                   </>
                 ) : (
                   <>
                     <Shield className="w-4 h-4 mr-2" />
-                    Sign In as Admin
+                    Access Admin Panel
                   </>
                 )}
               </Button>
             </form>
 
             <p className="text-center text-sm text-muted-foreground mt-6">
-              Only authorized administrators can access this portal.
+              Only the main admin has access to this portal. To become a group admin, request access from the main admin.
             </p>
           </CardContent>
         </Card>
