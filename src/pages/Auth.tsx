@@ -151,6 +151,17 @@ const Auth = () => {
         } else {
           // Log signup activity
           logActivityDirect(null, email, 'signup', 'New user signed up', { fullName });
+          
+          // Send email notification to admin about new signup
+          supabase.functions.invoke('send-notification', {
+            body: {
+              type: 'new_signup',
+              userEmail: email,
+              userName: fullName,
+              adminEmail: 'iamrlohit@gmail.com',
+            },
+          }).catch(err => console.error('Failed to send notification:', err));
+          
           toast({
             title: t("common.success"),
             description: "Account created! You can now start analyzing your fields.",
