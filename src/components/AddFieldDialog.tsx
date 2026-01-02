@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ export const AddFieldDialog = ({ open, onOpenChange, onFieldAdded }: AddFieldDia
   const [currentCrop, setCurrentCrop] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { logActivity } = useActivityLogger();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,6 +48,13 @@ export const AddFieldDialog = ({ open, onOpenChange, onFieldAdded }: AddFieldDia
       toast({
         title: "Field Added",
         description: `${name} has been added to your fields.`,
+      });
+
+      // Log field creation
+      logActivity({
+        activityType: 'field_create',
+        description: `Created field: ${name}`,
+        metadata: { fieldName: name, location, acres: acres ? parseFloat(acres) : null }
       });
 
       setName("");

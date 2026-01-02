@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +61,7 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const { logActivity } = useActivityLogger();
 
   // Get GPS location on mount
   useEffect(() => {
@@ -190,6 +192,13 @@ export const AddReportDialog = ({ open, onOpenChange, fieldId, onReportAdded }: 
       toast({
         title: "Report Uploaded",
         description: "Your report has been uploaded. Click 'Analyze with AI' to process it.",
+      });
+
+      // Log report upload activity
+      logActivity({
+        activityType: 'report_upload',
+        description: `Uploaded soil report for field`,
+        metadata: { fieldId, reportDate, fileType: selectedFile.type }
       });
 
       // Reset form

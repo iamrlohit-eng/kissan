@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
+import { useActivityLogger, logActivityDirect } from "@/hooks/useActivityLogger";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { FieldHeader } from "@/components/FieldHeader";
@@ -14,7 +16,7 @@ import { AddFieldDialog } from "@/components/AddFieldDialog";
 import { AddReportDialog } from "@/components/AddReportDialog";
 import { AIAnalysisCard } from "@/components/AIAnalysisCard";
 import { AgricultureChatbot } from "@/components/AgricultureChatbot";
-import { Sprout, Plus, LogOut, MapPin } from "lucide-react";
+import { Sprout, Plus, LogOut, MapPin, Shield } from "lucide-react";
 
 interface Field {
   id: string;
@@ -47,9 +49,11 @@ interface Report {
 
 const Dashboard = () => {
   const { user, isLoading: authLoading, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t } = useLanguage();
+  const { logActivity } = useActivityLogger();
   
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<Field | null>(null);
@@ -64,6 +68,9 @@ const Dashboard = () => {
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
+    } else if (user) {
+      // Log page view
+      logActivity({ activityType: 'page_view', description: 'Viewed dashboard' });
     }
   }, [user, authLoading, navigate]);
 
@@ -210,6 +217,13 @@ const Dashboard = () => {
             ? `AI analyzed your report in ${data.detectedLanguage.languageName}.`
             : "AI has analyzed your soil report with recommendations.",
         });
+        
+        // Log AI analysis activity
+        logActivity({
+          activityType: 'ai_analysis',
+          description: `AI analyzed soil report for ${selectedField.name}`,
+          metadata: { fieldId: selectedField.id, reportId: report.id }
+        });
       } else {
         throw new Error(data.error || "Analysis failed");
       }
@@ -225,6 +239,9 @@ const Dashboard = () => {
   };
 
   const handleSignOut = async () => {
+    if (user) {
+      await logActivityDirect(user.id, user.email || null, 'logout', 'User signed out');
+    }
     await signOut();
     navigate("/");
   };
@@ -254,6 +271,14 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <LanguageSelector />
+              {isAdmin && (
+                <Link to="/admin">
+                  <Button variant="outline" size="sm">
+                    <Shield className="w-4 h-4 mr-2" />
+                    Admin
+                  </Button>
+                </Link>
+              )}
               <Button variant="ghost" size="sm" onClick={handleSignOut}>
                 <LogOut className="w-4 h-4 mr-2" />
                 {t("dashboard.signOut")}

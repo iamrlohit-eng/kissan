@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageSelector } from "@/components/LanguageSelector";
 import { useToast } from "@/hooks/use-toast";
+import { logActivityDirect } from "@/hooks/useActivityLogger";
 import { Sprout, Mail, Lock, User } from "lucide-react";
 import { z } from "zod";
 
@@ -32,6 +33,12 @@ const Auth = () => {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        // Log login activity
+        if (event === 'SIGNED_IN') {
+          setTimeout(() => {
+            logActivityDirect(session.user.id, session.user.email || null, 'login', 'User signed in');
+          }, 0);
+        }
         navigate("/dashboard");
       }
     });
@@ -120,6 +127,8 @@ const Auth = () => {
             });
           }
         } else {
+          // Log signup activity
+          logActivityDirect(null, email, 'signup', 'New user signed up', { fullName });
           toast({
             title: t("common.success"),
             description: "Account created! You can now start analyzing your fields.",
