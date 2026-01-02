@@ -1,13 +1,15 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
-import { Sprout, BarChart3, Sparkles, Users } from "lucide-react";
+import { Sprout, BarChart3, Sparkles, Users, Shield } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
+  const { isAdmin } = useAdmin();
   const { t } = useLanguage();
 
   const handleGetStarted = () => {
@@ -117,8 +119,19 @@ const Index = () => {
 
       {/* Footer */}
       <footer className="border-t border-border py-8">
-        <div className="container max-w-6xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>{t("footer.tagline")}</p>
+        <div className="container max-w-6xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <p className="text-sm text-muted-foreground">{t("footer.tagline")}</p>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => navigate(user && isAdmin ? "/admin" : "/admin-login")}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Admin Portal
+            </Button>
+          </div>
         </div>
       </footer>
     </div>
