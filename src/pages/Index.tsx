@@ -122,15 +122,17 @@ const Index = () => {
         <div className="container max-w-6xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">{t("footer.tagline")}</p>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => navigate(user && isAdmin ? "/admin" : "/admin-login")}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Shield className="w-4 h-4 mr-2" />
-              Admin Portal
-            </Button>
+            {user && isAdmin && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate("/admin")}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Shield className="w-4 h-4 mr-2" />
+                Admin Portal
+              </Button>
+            )}
           </div>
         </div>
       </footer>
