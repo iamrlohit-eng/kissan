@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageSelector } from "@/components/LanguageSelector";
+import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 import { useToast } from "@/hooks/use-toast";
 import { logActivityDirect } from "@/hooks/useActivityLogger";
 import { Sprout, Mail, Lock, User, ArrowLeft } from "lucide-react";
@@ -331,6 +332,7 @@ const Auth = () => {
                       required
                     />
                   </div>
+                  {!isLogin && <PasswordStrengthIndicator password={password} />}
                 </div>
 
                 {isLogin && (
