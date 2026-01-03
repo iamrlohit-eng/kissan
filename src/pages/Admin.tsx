@@ -162,7 +162,7 @@ const Admin = () => {
         )
         .subscribe();
 
-      // Set up real-time subscription for audit logs
+      // Set up real-time subscription for audit logs with signup notifications
       const logsChannel = supabase
         .channel('audit-logs-changes')
         .on(
@@ -172,8 +172,16 @@ const Admin = () => {
             schema: 'public',
             table: 'audit_logs'
           },
-          () => {
+          (payload) => {
             fetchActivityLogs();
+            // Show toast notification for new signups
+            const newLog = payload.new as ActivityLog;
+            if (newLog.activity_type === 'signup') {
+              toast({
+                title: "🎉 New User Signup!",
+                description: `${newLog.user_email || 'A new user'} just signed up!`,
+              });
+            }
           }
         )
         .subscribe();
@@ -183,7 +191,7 @@ const Admin = () => {
         supabase.removeChannel(logsChannel);
       };
     }
-  }, [isMainAdmin]);
+  }, [isMainAdmin, toast]);
 
   const fetchUsersWithLoginInfo = async () => {
     setIsLoadingUsers(true);
