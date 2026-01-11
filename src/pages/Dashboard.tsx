@@ -17,7 +17,8 @@ import { AddReportDialog } from "@/components/AddReportDialog";
 import { AIAnalysisCard } from "@/components/AIAnalysisCard";
 import { AgricultureChatbot } from "@/components/AgricultureChatbot";
 import { RequestAdminDialog } from "@/components/RequestAdminDialog";
-import { Sprout, Plus, LogOut, MapPin, Shield } from "lucide-react";
+import { DeleteFieldDialog } from "@/components/DeleteFieldDialog";
+import { Sprout, Plus, LogOut, MapPin, Shield, Trash2 } from "lucide-react";
 
 interface Field {
   id: string;
@@ -63,6 +64,8 @@ const Dashboard = () => {
   const [isLoadingFields, setIsLoadingFields] = useState(true);
   const [showAddField, setShowAddField] = useState(false);
   const [showAddReport, setShowAddReport] = useState(false);
+  const [showDeleteField, setShowDeleteField] = useState(false);
+  const [fieldToDelete, setFieldToDelete] = useState<Field | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
@@ -293,18 +296,34 @@ const Dashboard = () => {
         {/* Field Selector */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           {fields.map((field) => (
-            <button
-              key={field.id}
-              onClick={() => setSelectedField(field)}
-              className={`px-4 py-2 rounded-lg border transition-all ${
-                selectedField?.id === field.id
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card border-border hover:border-primary/50"
-              }`}
-            >
-              <MapPin className="w-4 h-4 inline mr-2" />
-              {field.name}
-            </button>
+            <div key={field.id} className="relative group">
+              <button
+                onClick={() => setSelectedField(field)}
+                className={`px-4 py-2 rounded-lg border transition-all pr-10 ${
+                  selectedField?.id === field.id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card border-border hover:border-primary/50"
+                }`}
+              >
+                <MapPin className="w-4 h-4 inline mr-2" />
+                {field.name}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFieldToDelete(field);
+                  setShowDeleteField(true);
+                }}
+                className={`absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
+                  selectedField?.id === field.id
+                    ? "hover:bg-primary-foreground/20 text-primary-foreground"
+                    : "hover:bg-destructive/10 text-destructive"
+                }`}
+                title="Delete field"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           ))}
           <Button variant="outline" size="sm" onClick={() => setShowAddField(true)}>
             <Plus className="w-4 h-4 mr-1" />
@@ -474,6 +493,19 @@ const Dashboard = () => {
         onOpenChange={setShowAddReport}
         fieldId={selectedField?.id || ""}
         onReportAdded={() => selectedField && fetchReports(selectedField.id)}
+      />
+      <DeleteFieldDialog
+        open={showDeleteField}
+        onOpenChange={setShowDeleteField}
+        field={fieldToDelete}
+        onFieldDeleted={() => {
+          fetchFields();
+          if (fieldToDelete?.id === selectedField?.id) {
+            setSelectedField(null);
+            setSelectedReport(null);
+            setAiAnalysis(null);
+          }
+        }}
       />
       <AgricultureChatbot />
     </div>

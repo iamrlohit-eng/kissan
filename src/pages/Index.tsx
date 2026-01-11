@@ -1,16 +1,19 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { LanguageSelector } from "@/components/LanguageSelector";
-import { Sprout, BarChart3, Sparkles, Users, Shield } from "lucide-react";
+import { EmergencyScanDialog } from "@/components/EmergencyScanDialog";
+import { Sprout, BarChart3, Sparkles, Users, Shield, AlertTriangle } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, isLoading } = useAuth();
   const { isAdmin } = useAdmin();
   const { t } = useLanguage();
+  const [showEmergencyScan, setShowEmergencyScan] = useState(false);
 
   const handleGetStarted = () => {
     if (user) {
@@ -21,6 +24,8 @@ const Index = () => {
   };
 
   return (
+    <>
+      <EmergencyScanDialog open={showEmergencyScan} onOpenChange={setShowEmergencyScan} />
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-card border-b border-border">
@@ -56,9 +61,22 @@ const Index = () => {
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto animate-fade-up" style={{ animationDelay: "0.1s" }}>
             {t("hero.description")}
           </p>
-          <Button size="lg" onClick={handleGetStarted} className="animate-fade-up" style={{ animationDelay: "0.2s" }}>
-            {user ? t("hero.viewFields") : t("hero.startFree")}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-up" style={{ animationDelay: "0.2s" }}>
+            <Button size="lg" onClick={handleGetStarted}>
+              {user ? t("hero.viewFields") : t("hero.startFree")}
+            </Button>
+            {!user && (
+              <Button 
+                size="lg" 
+                variant="outline" 
+                onClick={() => setShowEmergencyScan(true)}
+                className="border-amber-500 text-amber-600 hover:bg-amber-50"
+              >
+                <AlertTriangle className="w-5 h-5 mr-2" />
+                Emergency Scan
+              </Button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -137,6 +155,7 @@ const Index = () => {
         </div>
       </footer>
     </div>
+    </>
   );
 };
 

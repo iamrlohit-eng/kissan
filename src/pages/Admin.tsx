@@ -47,7 +47,9 @@ import {
   Trash2,
   Upload,
   Bot,
-  MessageSquare
+  MessageSquare,
+  AlertTriangle,
+  Phone
 } from "lucide-react";
 import { format } from "date-fns";
 import { Database } from "@/integrations/supabase/types";
@@ -86,6 +88,21 @@ interface ActivityLog {
   page_path: string | null;
 }
 
+interface EmergencyScan {
+  id: string;
+  guest_identifier: string;
+  guest_name: string | null;
+  guest_phone: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  location_text: string | null;
+  file_url: string | null;
+  file_type: string | null;
+  ai_analysis: string | null;
+  recommended_crops: string[] | null;
+  created_at: string;
+}
+
 const activityTypeLabels: Record<ActivityType, { label: string; icon: React.ReactNode; color: string }> = {
   login: { label: "Login", icon: <LogIn className="w-4 h-4" />, color: "bg-blue-100 text-blue-700" },
   logout: { label: "Logout", icon: <LogIn className="w-4 h-4 rotate-180" />, color: "bg-gray-100 text-gray-700" },
@@ -111,9 +128,11 @@ const Admin = () => {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [requests, setRequests] = useState<AdminRequest[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [emergencyScans, setEmergencyScans] = useState<EmergencyScan[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isLoadingRequests, setIsLoadingRequests] = useState(true);
   const [isLoadingLogs, setIsLoadingLogs] = useState(true);
+  const [isLoadingEmergencyScans, setIsLoadingEmergencyScans] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [logSearchQuery, setLogSearchQuery] = useState("");
   const [activityFilter, setActivityFilter] = useState<string>("all");
@@ -144,6 +163,8 @@ const Admin = () => {
     if (isMainAdmin) {
       fetchUsersWithLoginInfo();
       fetchRequests();
+      fetchActivityLogs();
+      fetchEmergencyScans();
       fetchActivityLogs();
       
       // Set up real-time subscription for admin requests
@@ -263,7 +284,48 @@ const Admin = () => {
     } catch (error) {
       console.error('Error fetching activity logs:', error);
     } finally {
-      setIsLoadingLogs(false);
+    setIsLoadingLogs(false);
+    }
+  };
+
+  const fetchEmergencyScans = async () => {
+    setIsLoadingEmergencyScans(true);
+    try {
+      const { data, error } = await supabase
+        .from('emergency_scans')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setEmergencyScans(data || []);
+    } catch (error) {
+      console.error('Error fetching emergency scans:', error);
+    } finally {
+      setIsLoadingEmergencyScans(false);
+    }
+  };
+
+  const deleteEmergencyScan = async (scanId: string) => {
+    try {
+      const { error } = await supabase
+        .from('emergency_scans')
+        .delete()
+        .eq('id', scanId);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Deleted",
+        description: "Emergency scan has been deleted",
+      });
+      
+      fetchEmergencyScans();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete scan",
+        variant: "destructive",
+      });
     }
   };
 
@@ -544,6 +606,13 @@ const Admin = () => {
             <TabsTrigger value="activity" className="flex items-center gap-2">
               <Activity className="w-4 h-4" />
               Activity Log
+            </TabsTrigger>
+            <TabsTrigger value="emergency" className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Emergency Scans
+              {emergencyScans.length > 0 && (
+                <Badge className="ml-1 bg-amber-500 text-white text-xs">{emergencyScans.length}</Badge>
+              )}
             </TabsTrigger>
             <TabsTrigger value="requests" data-value="requests" className="flex items-center gap-2">
               <Bell className="w-4 h-4" />
@@ -917,6 +986,89 @@ const Admin = () => {
                         })}
                       </TableBody>
                     </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Emergency Scans Tab */}
+          <TabsContent value="emergency">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    Emergency Scans (Guest Users)
+                  </CardTitle>
+                  <Button variant="outline" size="icon" onClick={fetchEmergencyScans}>
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoadingEmergencyScans ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                ) : emergencyScans.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <AlertTriangle className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <p>No emergency scans yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {emergencyScans.map((scan) => (
+                      <div key={scan.id} className="p-4 rounded-lg border bg-amber-50/50 border-amber-200">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="font-medium">{scan.guest_name || 'Anonymous Guest'}</span>
+                              {scan.guest_phone && (
+                                <span className="text-sm text-muted-foreground flex items-center gap-1">
+                                  <Phone className="w-3 h-3" /> {scan.guest_phone}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-2">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {format(new Date(scan.created_at), 'MMM d, yyyy HH:mm')}
+                              </span>
+                              {scan.location_text && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" /> {scan.location_text}
+                                </span>
+                              )}
+                            </div>
+                            {scan.recommended_crops && scan.recommended_crops.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {scan.recommended_crops.slice(0, 3).map((crop, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs">{crop}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            {scan.file_url && (
+                              <Button size="sm" variant="outline" asChild>
+                                <a href={scan.file_url} target="_blank" rel="noopener noreferrer">
+                                  <FileText className="w-4 h-4" />
+                                </a>
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => deleteEmergencyScan(scan.id)}
+                              className="text-red-600 hover:bg-red-50"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>

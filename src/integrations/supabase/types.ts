@@ -86,6 +86,78 @@ export type Database = {
         }
         Relationships: []
       }
+      emergency_scans: {
+        Row: {
+          ai_analysis: string | null
+          created_at: string
+          file_type: string | null
+          file_url: string | null
+          guest_identifier: string
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          improvement_techniques: string[] | null
+          latitude: number | null
+          location_text: string | null
+          longitude: number | null
+          moisture: number | null
+          nitrogen: number | null
+          organic_matter: number | null
+          ph: number | null
+          phosphorus: number | null
+          potassium: number | null
+          preferred_language: string | null
+          recommended_crops: string[] | null
+          temperature: number | null
+        }
+        Insert: {
+          ai_analysis?: string | null
+          created_at?: string
+          file_type?: string | null
+          file_url?: string | null
+          guest_identifier: string
+          guest_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          improvement_techniques?: string[] | null
+          latitude?: number | null
+          location_text?: string | null
+          longitude?: number | null
+          moisture?: number | null
+          nitrogen?: number | null
+          organic_matter?: number | null
+          ph?: number | null
+          phosphorus?: number | null
+          potassium?: number | null
+          preferred_language?: string | null
+          recommended_crops?: string[] | null
+          temperature?: number | null
+        }
+        Update: {
+          ai_analysis?: string | null
+          created_at?: string
+          file_type?: string | null
+          file_url?: string | null
+          guest_identifier?: string
+          guest_name?: string | null
+          guest_phone?: string | null
+          id?: string
+          improvement_techniques?: string[] | null
+          latitude?: number | null
+          location_text?: string | null
+          longitude?: number | null
+          moisture?: number | null
+          nitrogen?: number | null
+          organic_matter?: number | null
+          ph?: number | null
+          phosphorus?: number | null
+          potassium?: number | null
+          preferred_language?: string | null
+          recommended_crops?: string[] | null
+          temperature?: number | null
+        }
+        Relationships: []
+      }
       fertilizer_reports: {
         Row: {
           ai_analysis: string | null
