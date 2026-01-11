@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, MapPin, Upload, Camera, AlertTriangle, Leaf, X } from "lucide-react";
+import { Loader2, MapPin, Upload, Camera, AlertTriangle, Leaf, X, Copy, Check, ExternalLink } from "lucide-react";
 
 interface EmergencyScanDialogProps {
   open: boolean;
@@ -57,6 +57,8 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
   const [filePreview, setFilePreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [scanIdentifier, setScanIdentifier] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const resetForm = () => {
     setStep("info");
@@ -68,6 +70,8 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
     setSelectedFile(null);
     setFilePreview(null);
     setAnalysisResult(null);
+    setScanIdentifier(null);
+    setLinkCopied(false);
   };
 
   const handleClose = () => {
@@ -224,6 +228,7 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
       if (insertError) throw insertError;
 
       setAnalysisResult(analysisData?.analysis);
+      setScanIdentifier(guestIdentifier);
       setStep("results");
       
       toast({
@@ -481,6 +486,39 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+
+            {/* Shareable Link */}
+            {scanIdentifier && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs text-blue-700 mb-2 font-medium">Bookmark this link to view your results later:</p>
+                <div className="flex gap-2">
+                  <input
+                    readOnly
+                    value={`${window.location.origin}/scan/${scanIdentifier}`}
+                    className="flex-1 text-xs bg-white border rounded px-2 py-1.5"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/scan/${scanIdentifier}`);
+                      setLinkCopied(true);
+                      toast({ title: "Link copied!", description: "Bookmark this page to access later." });
+                      setTimeout(() => setLinkCopied(false), 2000);
+                    }}
+                  >
+                    {linkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(`/scan/${scanIdentifier}`, '_blank')}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             )}
 
