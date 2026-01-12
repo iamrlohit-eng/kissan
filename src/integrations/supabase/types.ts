@@ -92,6 +92,10 @@ export type Database = {
           created_at: string
           file_type: string | null
           file_url: string | null
+          follow_up_notes: string | null
+          follow_up_status: string | null
+          followed_up_at: string | null
+          followed_up_by: string | null
           guest_identifier: string
           guest_name: string | null
           guest_phone: string | null
@@ -115,6 +119,10 @@ export type Database = {
           created_at?: string
           file_type?: string | null
           file_url?: string | null
+          follow_up_notes?: string | null
+          follow_up_status?: string | null
+          followed_up_at?: string | null
+          followed_up_by?: string | null
           guest_identifier: string
           guest_name?: string | null
           guest_phone?: string | null
@@ -138,6 +146,10 @@ export type Database = {
           created_at?: string
           file_type?: string | null
           file_url?: string | null
+          follow_up_notes?: string | null
+          follow_up_status?: string | null
+          followed_up_at?: string | null
+          followed_up_by?: string | null
           guest_identifier?: string
           guest_name?: string | null
           guest_phone?: string | null

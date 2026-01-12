@@ -49,7 +49,9 @@ import {
   Bot,
   MessageSquare,
   AlertTriangle,
-  Phone
+  Phone,
+  ExternalLink,
+  MessageCircle
 } from "lucide-react";
 import { format } from "date-fns";
 import { Database } from "@/integrations/supabase/types";
@@ -101,6 +103,10 @@ interface EmergencyScan {
   ai_analysis: string | null;
   recommended_crops: string[] | null;
   created_at: string;
+  follow_up_status: string | null;
+  follow_up_notes: string | null;
+  followed_up_by: string | null;
+  followed_up_at: string | null;
 }
 
 const activityTypeLabels: Record<ActivityType, { label: string; icon: React.ReactNode; color: string }> = {
@@ -324,6 +330,35 @@ const Admin = () => {
       toast({
         title: "Error",
         description: error.message || "Failed to delete scan",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateFollowUpStatus = async (scanId: string, status: string, notes?: string) => {
+    try {
+      const { error } = await supabase
+        .from('emergency_scans')
+        .update({ 
+          follow_up_status: status,
+          follow_up_notes: notes || null,
+          followed_up_by: user?.id,
+          followed_up_at: new Date().toISOString()
+        })
+        .eq('id', scanId);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Updated",
+        description: `Follow-up status changed to ${status}`,
+      });
+      
+      fetchEmergencyScans();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update follow-up status",
         variant: "destructive",
       });
     }
@@ -1018,57 +1053,106 @@ const Admin = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {emergencyScans.map((scan) => (
-                      <div key={scan.id} className="p-4 rounded-lg border bg-amber-50/50 border-amber-200">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="font-medium">{scan.guest_name || 'Anonymous Guest'}</span>
-                              {scan.guest_phone && (
-                                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                                  <Phone className="w-3 h-3" /> {scan.guest_phone}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-2">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {format(new Date(scan.created_at), 'MMM d, yyyy HH:mm')}
-                              </span>
-                              {scan.location_text && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3" /> {scan.location_text}
-                                </span>
-                              )}
-                            </div>
-                            {scan.recommended_crops && scan.recommended_crops.length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {scan.recommended_crops.slice(0, 3).map((crop, i) => (
-                                  <Badge key={i} variant="outline" className="text-xs">{crop}</Badge>
-                                ))}
+                    {emergencyScans.map((scan) => {
+                      const followUpStatus = scan.follow_up_status || 'pending';
+                      const statusColors: Record<string, string> = {
+                        pending: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+                        contacted: 'bg-blue-100 text-blue-800 border-blue-300',
+                        converted: 'bg-green-100 text-green-800 border-green-300',
+                        not_interested: 'bg-gray-100 text-gray-600 border-gray-300',
+                      };
+                      
+                      return (
+                        <div key={scan.id} className="p-4 rounded-lg border bg-amber-50/50 border-amber-200">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                <span className="font-medium">{scan.guest_name || 'Anonymous Guest'}</span>
+                                {scan.guest_phone && (
+                                  <a 
+                                    href={`tel:${scan.guest_phone}`}
+                                    className="text-sm text-primary flex items-center gap-1 hover:underline"
+                                  >
+                                    <Phone className="w-3 h-3" /> {scan.guest_phone}
+                                  </a>
+                                )}
+                                <Badge className={`text-xs ${statusColors[followUpStatus]}`}>
+                                  {followUpStatus === 'pending' && '⏳ Pending'}
+                                  {followUpStatus === 'contacted' && '📞 Contacted'}
+                                  {followUpStatus === 'converted' && '✅ Converted'}
+                                  {followUpStatus === 'not_interested' && '❌ Not Interested'}
+                                </Badge>
                               </div>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            {scan.file_url && (
-                              <Button size="sm" variant="outline" asChild>
-                                <a href={scan.file_url} target="_blank" rel="noopener noreferrer">
-                                  <FileText className="w-4 h-4" />
-                                </a>
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => deleteEmergencyScan(scan.id)}
-                              className="text-red-600 hover:bg-red-50"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                              <div className="flex flex-wrap gap-3 text-sm text-muted-foreground mb-2">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {format(new Date(scan.created_at), 'MMM d, yyyy HH:mm')}
+                                </span>
+                                {scan.location_text && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="w-3 h-3" /> {scan.location_text}
+                                  </span>
+                                )}
+                              </div>
+                              {scan.recommended_crops && scan.recommended_crops.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-2">
+                                  {scan.recommended_crops.slice(0, 3).map((crop, i) => (
+                                    <Badge key={i} variant="outline" className="text-xs">{crop}</Badge>
+                                  ))}
+                                </div>
+                              )}
+                              {scan.follow_up_notes && (
+                                <div className="mt-2 p-2 bg-white/50 rounded text-sm text-muted-foreground">
+                                  <span className="font-medium">Notes:</span> {scan.follow_up_notes}
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-1">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => window.open(`/scan/${scan.guest_identifier}`, '_blank')}
+                                  title="View scan results"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </Button>
+                                {scan.file_url && (
+                                  <Button size="sm" variant="outline" asChild>
+                                    <a href={scan.file_url} target="_blank" rel="noopener noreferrer" title="View uploaded file">
+                                      <FileText className="w-4 h-4" />
+                                    </a>
+                                  </Button>
+                                )}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => deleteEmergencyScan(scan.id)}
+                                  className="text-red-600 hover:bg-red-50"
+                                  title="Delete scan"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                              <Select 
+                                value={followUpStatus} 
+                                onValueChange={(value) => updateFollowUpStatus(scan.id, value)}
+                              >
+                                <SelectTrigger className="w-full text-xs h-8">
+                                  <SelectValue placeholder="Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pending">⏳ Pending</SelectItem>
+                                  <SelectItem value="contacted">📞 Contacted</SelectItem>
+                                  <SelectItem value="converted">✅ Converted</SelectItem>
+                                  <SelectItem value="not_interested">❌ Not Interested</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>

@@ -17,11 +17,14 @@ import {
   FileText,
   Download,
   Share2,
-  Printer
+  Printer,
+  Image
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { EmergencyScanPrintableReport } from "@/components/EmergencyScanPrintableReport";
+import { SocialShareCard } from "@/components/SocialShareCard";
+import html2canvas from "html2canvas";
 
 interface EmergencyScan {
   id: string;
@@ -49,12 +52,14 @@ const EmergencyScanResult = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const printRef = useRef<HTMLDivElement>(null);
+  const socialCardRef = useRef<HTMLDivElement>(null);
   
   const [scan, setScan] = useState<EmergencyScan | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   useEffect(() => {
     if (scanId) {
@@ -146,6 +151,65 @@ const EmergencyScanResult = () => {
     };
   };
 
+  const handleDownloadSocialImage = async () => {
+    if (!socialCardRef.current || !scan) return;
+
+    setIsGeneratingImage(true);
+    try {
+      // Temporarily make the card visible for rendering
+      const card = socialCardRef.current;
+      card.style.position = "fixed";
+      card.style.left = "-9999px";
+      card.style.top = "0";
+      card.style.display = "flex";
+
+      const canvas = await html2canvas(card, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+      });
+
+      // Hide it again
+      card.style.display = "none";
+
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast({
+            title: "Error",
+            description: "Failed to generate image",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `kisaan-soil-analysis-${scan.guest_identifier.slice(0, 8)}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "Image downloaded!",
+          description: "Share it on social media to show your soil analysis results.",
+        });
+      }, "image/png");
+    } catch (error) {
+      console.error("Error generating social image:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate image. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   const handleShare = async () => {
     const url = window.location.href;
     const title = "My Soil Analysis Report - KISAAN";
@@ -211,6 +275,19 @@ const EmergencyScanResult = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleDownloadSocialImage}
+                disabled={isGeneratingImage}
+              >
+                {isGeneratingImage ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Image className="w-4 h-4 mr-2" />
+                )}
+                Social Image
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-2" />
                 Print PDF
@@ -427,6 +504,26 @@ const EmergencyScanResult = () => {
               ph: scan.ph,
               organic_matter: scan.organic_matter,
               moisture: scan.moisture,
+            }}
+          />
+        )}
+      </div>
+
+      {/* Hidden social share card */}
+      <div style={{ display: "none" }}>
+        {scan && (
+          <SocialShareCard
+            ref={socialCardRef}
+            guestName={scan.guest_name}
+            location={scan.location_text}
+            scanDate={scan.created_at}
+            recommendedCrops={scan.recommended_crops || []}
+            summary={analysis?.summary || null}
+            nutrientData={{
+              nitrogen: scan.nitrogen,
+              phosphorus: scan.phosphorus,
+              potassium: scan.potassium,
+              ph: scan.ph,
             }}
           />
         )}
