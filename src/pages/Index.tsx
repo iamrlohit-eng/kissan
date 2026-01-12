@@ -62,18 +62,18 @@ const Index = () => {
             {t("hero.description")}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-up" style={{ animationDelay: "0.2s" }}>
-            <Button size="lg" onClick={handleGetStarted}>
-              {user ? t("hero.viewFields") : t("hero.startFree")}
-            </Button>
-            {!user && (
+            {user ? (
+              <Button size="lg" onClick={handleGetStarted}>
+                {t("hero.viewFields")}
+              </Button>
+            ) : (
               <Button 
                 size="lg" 
-                variant="outline" 
                 onClick={() => setShowEmergencyScan(true)}
-                className="border-amber-500 text-amber-600 hover:bg-amber-50"
+                className="bg-primary hover:bg-primary/90"
               >
                 <AlertTriangle className="w-5 h-5 mr-2" />
-                Emergency Scan
+                SCAN FREE
               </Button>
             )}
           </div>

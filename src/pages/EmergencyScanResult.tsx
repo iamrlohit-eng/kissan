@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,10 +14,14 @@ import {
   ArrowLeft,
   Copy,
   Check,
-  FileText
+  FileText,
+  Download,
+  Share2,
+  Printer
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { EmergencyScanPrintableReport } from "@/components/EmergencyScanPrintableReport";
 
 interface EmergencyScan {
   id: string;
@@ -44,6 +48,7 @@ const EmergencyScanResult = () => {
   const { scanId } = useParams<{ scanId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const printRef = useRef<HTMLDivElement>(null);
   
   const [scan, setScan] = useState<EmergencyScan | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
@@ -102,6 +107,63 @@ const EmergencyScanResult = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handlePrint = () => {
+    const printContent = printRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast({
+        title: "Print blocked",
+        description: "Please allow pop-ups to print the report.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Soil Analysis Report - KISAAN</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; }
+            @media print {
+              body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+      printWindow.close();
+    };
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = "My Soil Analysis Report - KISAAN";
+    const text = `Check out my soil analysis results from KISAAN: ${scan?.guest_name ? `Scanned for ${scan.guest_name}` : "Emergency Soil Scan"}`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        toast({ title: "Shared successfully!" });
+      } catch (error) {
+        // User cancelled or share failed, try clipboard
+        await copyLink();
+      }
+    } else {
+      await copyLink();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -148,7 +210,15 @@ const EmergencyScanResult = () => {
                 <p className="text-xs text-muted-foreground">Emergency Scan Result</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={handlePrint}>
+                <Printer className="w-4 h-4 mr-2" />
+                Print PDF
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleShare}>
+                <Share2 className="w-4 h-4 mr-2" />
+                Share
+              </Button>
               <Button variant="outline" size="sm" onClick={copyLink}>
                 {copied ? (
                   <>
@@ -340,6 +410,27 @@ const EmergencyScanResult = () => {
           </div>
         </div>
       </main>
+
+      {/* Hidden printable report */}
+      <div className="hidden">
+        {scan && (
+          <EmergencyScanPrintableReport
+            ref={printRef}
+            guestName={scan.guest_name}
+            location={scan.location_text}
+            scanDate={scan.created_at}
+            analysis={analysis}
+            scanData={{
+              nitrogen: scan.nitrogen,
+              phosphorus: scan.phosphorus,
+              potassium: scan.potassium,
+              ph: scan.ph,
+              organic_matter: scan.organic_matter,
+              moisture: scan.moisture,
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };

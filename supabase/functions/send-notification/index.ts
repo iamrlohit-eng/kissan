@@ -9,11 +9,18 @@ const corsHeaders = {
 };
 
 interface NotificationRequest {
-  type: 'new_signup' | 'admin_request' | 'request_approved' | 'request_rejected';
+  type: 'new_signup' | 'admin_request' | 'request_approved' | 'request_rejected' | 'emergency_scan';
   userEmail: string;
   userName?: string;
   adminEmail?: string;
   reason?: string;
+  scanDetails?: {
+    guestName?: string;
+    guestPhone?: string;
+    location?: string;
+    scanLink?: string;
+    recommendedCrops?: string[];
+  };
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -22,7 +29,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { type, userEmail, userName, adminEmail, reason }: NotificationRequest = await req.json();
+    const { type, userEmail, userName, adminEmail, reason, scanDetails }: NotificationRequest = await req.json();
 
     console.log('Sending notification:', { type, userEmail, adminEmail });
 
@@ -104,6 +111,36 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
           `,
         };
+        break;
+
+      case 'emergency_scan':
+        if (adminEmail && scanDetails) {
+          emailConfig = {
+            to: [adminEmail],
+            subject: '🚨 New Emergency Soil Scan - KISAAN Analyser',
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #f59e0b;">🚨 Emergency Soil Scan Submitted</h2>
+                <p>A guest has submitted an emergency soil scan and may need follow-up:</p>
+                <div style="background: #fffbeb; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                  <p><strong>Guest Name:</strong> ${scanDetails.guestName || 'Not provided'}</p>
+                  <p><strong>Phone:</strong> ${scanDetails.guestPhone || 'Not provided'}</p>
+                  <p><strong>Location:</strong> ${scanDetails.location || 'Not specified'}</p>
+                  <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+                  ${scanDetails.recommendedCrops?.length ? `<p><strong>Recommended Crops:</strong> ${scanDetails.recommendedCrops.join(', ')}</p>` : ''}
+                </div>
+                ${scanDetails.scanLink ? `
+                <p style="margin: 16px 0;">
+                  <a href="${scanDetails.scanLink}" style="background: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    View Scan Results
+                  </a>
+                </p>
+                ` : ''}
+                <p style="color: #6b7280; font-size: 14px;">Consider reaching out to convert this guest to a registered user.</p>
+              </div>
+            `,
+          };
+        }
         break;
     }
 

@@ -230,6 +230,27 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
       setAnalysisResult(analysisData?.analysis);
       setScanIdentifier(guestIdentifier);
       setStep("results");
+
+      // Send notification to admins
+      try {
+        await supabase.functions.invoke("send-notification", {
+          body: {
+            type: "emergency_scan",
+            userEmail: "guest@emergency-scan.local",
+            adminEmail: "admin@kisaan.app", // This should be configurable
+            scanDetails: {
+              guestName: guestName || undefined,
+              guestPhone: guestPhone || undefined,
+              location: locationText || undefined,
+              scanLink: `${window.location.origin}/scan/${guestIdentifier}`,
+              recommendedCrops: analysisData?.analysis?.recommendedCrops || [],
+            },
+          },
+        });
+      } catch (notifyError) {
+        console.error("Failed to send admin notification:", notifyError);
+        // Don't fail the whole process if notification fails
+      }
       
       toast({
         title: "Analysis Complete!",
