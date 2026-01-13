@@ -160,20 +160,20 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
       // Generate unique identifier for guest
       const guestIdentifier = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Upload file to storage
+      // Upload file to dedicated emergency-scans bucket (scans folder for policy compliance)
       const fileExt = selectedFile.name.split(".").pop();
       const fileName = `${guestIdentifier}.${fileExt}`;
-      const filePath = `emergency-scans/${fileName}`;
+      const filePath = `scans/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from("report-files")
+        .from("emergency-scans")
         .upload(filePath, selectedFile);
 
       if (uploadError) throw uploadError;
 
       // Get signed URL
       const { data: urlData } = await supabase.storage
-        .from("report-files")
+        .from("emergency-scans")
         .createSignedUrl(filePath, 60 * 60 * 24 * 365);
 
       const fileUrl = urlData?.signedUrl;
