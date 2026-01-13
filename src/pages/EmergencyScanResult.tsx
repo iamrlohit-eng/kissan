@@ -397,63 +397,6 @@ const EmergencyScanResult = () => {
     }
   };
 
-  const handleDownloadJpeg = async () => {
-    if (!printRef.current || !scan) return;
-
-    setIsGeneratingJpeg(true);
-    try {
-      const element = printRef.current;
-      element.style.position = "fixed";
-      element.style.left = "-9999px";
-      element.style.top = "0";
-      element.style.display = "block";
-      element.style.width = "800px";
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-      });
-
-      element.style.display = "none";
-
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          toast({
-            title: "Error",
-            description: "Failed to generate image",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `kisaan-soil-report-${scan.guest_identifier.slice(0, 8)}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        toast({
-          title: "JPEG downloaded!",
-          description: "Your soil analysis report has been saved as JPEG image.",
-        });
-      }, "image/jpeg", 0.95);
-    } catch (error) {
-      console.error("Error generating JPEG:", error);
-      toast({
-        title: "Error",
-        description: "Failed to generate JPEG. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingJpeg(false);
-    }
-  };
-
   const handleShare = async () => {
     const url = window.location.href;
     const title = "My Soil Analysis Report - KISAAN";
