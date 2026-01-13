@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,28 @@ interface ScanEmailRequest {
   };
 }
 
+// Simple in-memory rate limiting (per function instance)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 5; // Max 5 emails per hour per IP
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
+
+function checkRateLimit(clientIP: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(clientIP);
+  
+  if (!record || now > record.resetTime) {
+    rateLimitMap.set(clientIP, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (record.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  record.count++;
+  return true;
+}
+
 serve(async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -29,10 +52,31 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Get client IP for rate limiting
+    const clientIP = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || 
+                     req.headers.get("x-real-ip") || 
+                     "unknown";
+
+    // Check rate limit
+    if (!checkRateLimit(clientIP)) {
+      console.log(`Rate limit exceeded for IP: ${clientIP}`);
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        {
+          status: 429,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       throw new Error("RESEND_API_KEY is not configured");
     }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const {
       email,
@@ -45,7 +89,9 @@ serve(async (req: Request): Promise<Response> => {
       nutrients,
     }: ScanEmailRequest = await req.json();
 
-    if (!email || !email.includes("@")) {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !emailRegex.test(email)) {
       return new Response(
         JSON.stringify({ error: "Valid email address is required" }),
         {
@@ -54,6 +100,39 @@ serve(async (req: Request): Promise<Response> => {
         }
       );
     }
+
+    // Validate scanId is provided
+    if (!scanId) {
+      return new Response(
+        JSON.stringify({ error: "Scan ID is required" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Verify the scan exists in the database before sending email
+    // This prevents abuse by requiring a valid scan to exist
+    const { data: scanData, error: scanError } = await supabase
+      .from("emergency_scans")
+      .select("id, guest_identifier")
+      .or(`id.eq.${scanId},guest_identifier.eq.${scanId}`)
+      .limit(1)
+      .single();
+
+    if (scanError || !scanData) {
+      console.log(`Scan not found for ID: ${scanId}`);
+      return new Response(
+        JSON.stringify({ error: "Invalid scan ID. Cannot send email for non-existent scan." }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    console.log(`Sending email for verified scan: ${scanData.id}`);
 
     const formattedDate = new Date(scanDate).toLocaleDateString("en-US", {
       year: "numeric",
@@ -65,7 +144,7 @@ serve(async (req: Request): Promise<Response> => {
     const scanUrl = `${baseUrl.replace(".supabase.co", ".lovable.app")}/emergency-scan/${scanId}`;
 
     const cropsList = recommendedCrops.length > 0 
-      ? recommendedCrops.map(crop => `<span style="display: inline-block; background-color: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; margin: 4px 4px 4px 0; font-size: 14px;">${crop}</span>`).join("") 
+      ? recommendedCrops.map(crop => `<span style="display: inline-block; background-color: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; margin: 4px 4px 4px 0; font-size: 14px;">${escapeHtml(crop)}</span>`).join("") 
       : "<p style='color: #6b7280;'>No specific crops recommended</p>";
 
     const nutrientRows = `
@@ -86,6 +165,11 @@ serve(async (req: Request): Promise<Response> => {
         <td style="padding: 12px; text-align: center;">${nutrients.ph ?? "N/A"}</td>
       </tr>
     `;
+
+    // Escape HTML to prevent XSS in email content
+    const safeGuestName = guestName ? escapeHtml(guestName) : null;
+    const safeLocation = location ? escapeHtml(location) : null;
+    const safeSummary = summary ? escapeHtml(summary) : null;
 
     const emailHtml = `
       <!DOCTYPE html>
@@ -112,7 +196,7 @@ serve(async (req: Request): Promise<Response> => {
               <h2 style="color: #166534; margin: 0 0 16px 0; font-size: 22px;">Your Soil Analysis Report</h2>
               
               <p style="color: #374151; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
-                Hello${guestName ? ` <strong>${guestName}</strong>` : ""}! Your emergency soil scan results are ready.
+                Hello${safeGuestName ? ` <strong>${safeGuestName}</strong>` : ""}! Your emergency soil scan results are ready.
               </p>
 
               <!-- Scan Info Card -->
@@ -122,21 +206,21 @@ serve(async (req: Request): Promise<Response> => {
                     <td style="padding: 4px 0; color: #6b7280; font-size: 14px;">📅 Scan Date</td>
                     <td style="padding: 4px 0; color: #111827; font-weight: 600; text-align: right;">${formattedDate}</td>
                   </tr>
-                  ${location ? `
+                  ${safeLocation ? `
                   <tr>
                     <td style="padding: 4px 0; color: #6b7280; font-size: 14px;">📍 Location</td>
-                    <td style="padding: 4px 0; color: #111827; font-weight: 600; text-align: right;">${location}</td>
+                    <td style="padding: 4px 0; color: #111827; font-weight: 600; text-align: right;">${safeLocation}</td>
                   </tr>
                   ` : ""}
                 </table>
               </div>
 
-              ${summary ? `
+              ${safeSummary ? `
               <!-- Summary -->
               <div style="margin-bottom: 24px;">
                 <h3 style="color: #166534; margin: 0 0 12px 0; font-size: 18px;">🌿 Analysis Summary</h3>
                 <p style="color: #374151; font-size: 15px; line-height: 1.7; margin: 0; background-color: #f9fafb; padding: 16px; border-radius: 8px;">
-                  ${summary}
+                  ${safeSummary}
                 </p>
               </div>
               ` : ""}
@@ -205,7 +289,7 @@ serve(async (req: Request): Promise<Response> => {
       body: JSON.stringify({
         from: "KISAAN <onboarding@resend.dev>",
         to: [email],
-        subject: `Your Soil Analysis Report${guestName ? ` - ${guestName}` : ""} | KISAAN`,
+        subject: `Your Soil Analysis Report${safeGuestName ? ` - ${safeGuestName}` : ""} | KISAAN`,
         html: emailHtml,
       }),
     });
@@ -238,3 +322,15 @@ serve(async (req: Request): Promise<Response> => {
     );
   }
 });
+
+// Helper function to escape HTML and prevent XSS
+function escapeHtml(text: string): string {
+  const htmlEscapes: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return text.replace(/[&<>"']/g, (char) => htmlEscapes[char] || char);
+}
