@@ -4,6 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   Sprout, 
   Loader2, 
@@ -18,13 +24,16 @@ import {
   Download,
   Share2,
   Printer,
-  Image
+  Image,
+  FileImage,
+  ChevronDown
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { EmergencyScanPrintableReport } from "@/components/EmergencyScanPrintableReport";
 import { SocialShareCard } from "@/components/SocialShareCard";
 import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 interface EmergencyScan {
   id: string;
@@ -60,6 +69,8 @@ const EmergencyScanResult = () => {
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isGeneratingJpeg, setIsGeneratingJpeg] = useState(false);
 
   useEffect(() => {
     if (scanId) {
@@ -210,6 +221,118 @@ const EmergencyScanResult = () => {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!printRef.current || !scan) return;
+
+    setIsGeneratingPdf(true);
+    try {
+      const element = printRef.current;
+      element.style.position = "fixed";
+      element.style.left = "-9999px";
+      element.style.top = "0";
+      element.style.display = "block";
+      element.style.width = "800px";
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+      });
+
+      element.style.display = "none";
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 0;
+
+      pdf.addImage(imgData, "JPEG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      pdf.save(`kisaan-soil-report-${scan.guest_identifier.slice(0, 8)}.pdf`);
+
+      toast({
+        title: "PDF downloaded!",
+        description: "Your soil analysis report has been saved as PDF.",
+      });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadJpeg = async () => {
+    if (!printRef.current || !scan) return;
+
+    setIsGeneratingJpeg(true);
+    try {
+      const element = printRef.current;
+      element.style.position = "fixed";
+      element.style.left = "-9999px";
+      element.style.top = "0";
+      element.style.display = "block";
+      element.style.width = "800px";
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+      });
+
+      element.style.display = "none";
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast({
+            title: "Error",
+            description: "Failed to generate image",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `kisaan-soil-report-${scan.guest_identifier.slice(0, 8)}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({
+          title: "JPEG downloaded!",
+          description: "Your soil analysis report has been saved as JPEG image.",
+        });
+      }, "image/jpeg", 0.95);
+    } catch (error) {
+      console.error("Error generating JPEG:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate JPEG. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingJpeg(false);
+    }
+  };
+
   const handleShare = async () => {
     const url = window.location.href;
     const title = "My Soil Analysis Report - KISAAN";
@@ -275,22 +398,42 @@ const EmergencyScanResult = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleDownloadSocialImage}
-                disabled={isGeneratingImage}
-              >
-                {isGeneratingImage ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Image className="w-4 h-4 mr-2" />
-                )}
-                Social Image
-              </Button>
+              {/* Download Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={isGeneratingPdf || isGeneratingJpeg}
+                  >
+                    {(isGeneratingPdf || isGeneratingJpeg) ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    Download
+                    <ChevronDown className="w-4 h-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleDownloadPdf} disabled={isGeneratingPdf}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Download as PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadJpeg} disabled={isGeneratingJpeg}>
+                    <FileImage className="w-4 h-4 mr-2" />
+                    Download as JPEG
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadSocialImage} disabled={isGeneratingImage}>
+                    <Image className="w-4 h-4 mr-2" />
+                    Social Media Image
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="w-4 h-4 mr-2" />
-                Print PDF
+                Print
               </Button>
               <Button variant="outline" size="sm" onClick={handleShare}>
                 <Share2 className="w-4 h-4 mr-2" />
