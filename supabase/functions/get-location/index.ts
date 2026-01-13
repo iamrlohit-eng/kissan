@@ -27,7 +27,8 @@ serve(async (req: Request) => {
     if (clientIP && clientIP !== 'unknown' && clientIP !== '127.0.0.1') {
       try {
         // Using ip-api.com (free, no API key required)
-        const geoResponse = await fetch(`http://ip-api.com/json/${clientIP}?fields=status,country,regionName,city`);
+        // Using HTTPS for secure communication
+        const geoResponse = await fetch(`https://ip-api.com/json/${clientIP}?fields=status,country,regionName,city`);
         
         if (geoResponse.ok) {
           const geoData = await geoResponse.json();
