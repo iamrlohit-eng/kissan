@@ -10,6 +10,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { 
   Sprout, 
   Loader2, 
@@ -26,7 +36,8 @@ import {
   Printer,
   Image,
   FileImage,
-  ChevronDown
+  ChevronDown,
+  Mail
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -71,6 +82,9 @@ const EmergencyScanResult = () => {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isGeneratingJpeg, setIsGeneratingJpeg] = useState(false);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState("");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   useEffect(() => {
     if (scanId) {
@@ -258,6 +272,14 @@ const EmergencyScanResult = () => {
       const imgY = 0;
 
       pdf.addImage(imgData, "JPEG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      
+      // Add KISAAN watermark
+      pdf.setFontSize(60);
+      pdf.setTextColor(200, 200, 200);
+      pdf.saveGraphicsState();
+      pdf.text("KISAAN", pdfWidth / 2, pdfHeight / 2, { angle: 45, align: "center" });
+      pdf.restoreGraphicsState();
+      
       pdf.save(`kisaan-soil-report-${scan.guest_identifier.slice(0, 8)}.pdf`);
 
       toast({
@@ -273,6 +295,105 @@ const EmergencyScanResult = () => {
       });
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadJpeg = async () => {
+    if (!printRef.current || !scan) return;
+
+    setIsGeneratingJpeg(true);
+    try {
+      const element = printRef.current;
+      element.style.position = "fixed";
+      element.style.left = "-9999px";
+      element.style.top = "0";
+      element.style.display = "block";
+      element.style.width = "800px";
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+      });
+
+      element.style.display = "none";
+
+      // Add KISAAN watermark to canvas
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.font = "bold 120px Arial";
+        ctx.fillStyle = "#16a34a";
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(-Math.PI / 6);
+        ctx.textAlign = "center";
+        ctx.fillText("KISAAN", 0, 0);
+        ctx.restore();
+      }
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast({ title: "Error", description: "Failed to generate image", variant: "destructive" });
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `kisaan-soil-report-${scan.guest_identifier.slice(0, 8)}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast({ title: "JPEG downloaded!", description: "Your soil analysis report has been saved as JPEG image." });
+      }, "image/jpeg", 0.95);
+    } catch (error) {
+      console.error("Error generating JPEG:", error);
+      toast({ title: "Error", description: "Failed to generate JPEG. Please try again.", variant: "destructive" });
+    } finally {
+      setIsGeneratingJpeg(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!scan || !emailAddress) return;
+
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-scan-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailAddress,
+          guestName: scan.guest_name,
+          location: scan.location_text,
+          scanDate: scan.created_at,
+          scanId: scan.guest_identifier,
+          summary: analysis?.summary || null,
+          recommendedCrops: scan.recommended_crops || [],
+          nutrients: {
+            nitrogen: scan.nitrogen,
+            phosphorus: scan.phosphorus,
+            potassium: scan.potassium,
+            ph: scan.ph,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to send email");
+      }
+
+      toast({ title: "Email sent!", description: `Report sent to ${emailAddress}` });
+      setIsEmailDialogOpen(false);
+      setEmailAddress("");
+    } catch (error) {
+      console.error("Error sending email:", error);
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to send email", variant: "destructive" });
+    } finally {
+      setIsSendingEmail(false);
     }
   };
 
@@ -451,6 +572,10 @@ const EmergencyScanResult = () => {
                     Copy Link
                   </>
                 )}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setIsEmailDialogOpen(true)}>
+                <Mail className="w-4 h-4 mr-2" />
+                Email
               </Button>
               <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -671,6 +796,27 @@ const EmergencyScanResult = () => {
           />
         )}
       </div>
+      {/* Email Dialog */}
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email Report</DialogTitle>
+            <DialogDescription>Enter your email address to receive the soil analysis report.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input id="email" type="email" placeholder="your@email.com" value={emailAddress} onChange={(e) => setEmailAddress(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEmailDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendEmail} disabled={isSendingEmail || !emailAddress}>
+              {isSendingEmail ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><Mail className="w-4 h-4 mr-2" />Send Email</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

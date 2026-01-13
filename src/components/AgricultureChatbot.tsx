@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, User, Loader2, Mic, MicOff } from "lucide-react";
+import { MessageCircle, X, Send, Bot, User, Loader2, Mic, MicOff, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,6 +8,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 // Web Speech API types
 interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
@@ -40,6 +48,22 @@ interface Message {
   role: "user" | "assistant";
   content: string;
 }
+
+type AIProvider = "gemini" | "gpt" | "perplexity";
+
+interface AIProviderConfig {
+  id: AIProvider;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+}
+
+const AI_PROVIDERS: AIProviderConfig[] = [
+  { id: "gemini", name: "Gemini", description: "Fast & practical advice", icon: "✨", color: "bg-blue-500" },
+  { id: "gpt", name: "GPT-5", description: "Deep analysis & research", icon: "🧠", color: "bg-green-500" },
+  { id: "perplexity", name: "Research", description: "Multi-source insights", icon: "🔍", color: "bg-purple-500" },
+];
 
 // Language code mapping for Web Speech API
 const speechLanguageMap: Record<string, string> = {
@@ -78,12 +102,14 @@ export const AgricultureChatbot = () => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
   const scrollRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { language, t } = useLanguage();
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
   const { user } = useAuth();
+
   // Check if browser supports speech recognition
   const isSpeechSupported = typeof window !== "undefined" && 
     ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
@@ -197,7 +223,7 @@ export const AgricultureChatbot = () => {
       }
 
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agriculture-chat`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/multi-ai-chat`,
         {
           method: "POST",
           headers: {
@@ -208,6 +234,7 @@ export const AgricultureChatbot = () => {
             message: userMessage,
             language,
             conversationHistory: messages.slice(-10),
+            provider: selectedProvider,
           }),
         }
       );
@@ -267,8 +294,8 @@ export const AgricultureChatbot = () => {
       if (assistantContent) {
         logActivity({
           activityType: 'ai_chat',
-          description: 'User chatted with AI assistant',
-          metadata: { messageLength: userMessage.length }
+          description: `User chatted with ${selectedProvider.toUpperCase()} AI assistant`,
+          metadata: { messageLength: userMessage.length, provider: selectedProvider }
         });
       }
     } catch (error) {
@@ -294,17 +321,20 @@ export const AgricultureChatbot = () => {
   };
 
   const getWelcomeMessage = () => {
+    const providerName = AI_PROVIDERS.find(p => p.id === selectedProvider)?.name || "AI";
     const welcomeMessages: Record<string, string> = {
-      en: "Hello! I'm your agriculture assistant. Ask me anything about farming, crops, soil health, pest control, and more! You can also use the microphone to speak your question.",
-      hi: "नमस्ते! मैं आपका कृषि सहायक हूं। खेती, फसलों, मिट्टी की सेहत, कीट नियंत्रण और अन्य विषयों पर मुझसे कुछ भी पूछें! आप माइक्रोफोन का उपयोग करके भी बोल सकते हैं।",
-      ta: "வணக்கம்! நான் உங்கள் விவசாய உதவியாளர். விவசாயம், பயிர்கள், மண் ஆரோக்கியம், பூச்சி கட்டுப்பாடு மற்றும் பலவற்றைப் பற்றி என்னிடம் கேளுங்கள்! மைக்ரோஃபோனைப் பயன்படுத்தியும் பேசலாம்।",
-      te: "నమస్కారం! నేను మీ వ్యవసాయ సహాయకుడిని. వ్యవసాయం, పంటలు, నేల ఆరోగ్యం, పురుగుల నియంత్రణ మరియు మరిన్ని విషయాలపై నన్ను అడగండి! మీరు మైక్రోఫోన్ ఉపయోగించి కూడా మాట్లాడవచ్చు।",
-      es: "¡Hola! Soy tu asistente agrícola. ¡Pregúntame sobre cultivos, salud del suelo, control de plagas y más! También puedes usar el micrófono para hablar.",
-      fr: "Bonjour! Je suis votre assistant agricole. Posez-moi des questions sur l'agriculture, les cultures, la santé des sols et plus encore! Vous pouvez aussi utiliser le microphone.",
-      de: "Hallo! Ich bin Ihr Landwirtschaftsassistent. Fragen Sie mich alles über Landwirtschaft, Kulturen, Bodengesundheit und mehr! Sie können auch das Mikrofon benutzen.",
+      en: `Hello! I'm your ${providerName}-powered agriculture assistant. Ask me anything about farming, crops, soil health, pest control, and more! Switch between AI models above for different expertise.`,
+      hi: `नमस्ते! मैं ${providerName} द्वारा संचालित आपका कृषि सहायक हूं। खेती, फसलों, मिट्टी की सेहत, कीट नियंत्रण और अन्य विषयों पर मुझसे कुछ भी पूछें! विभिन्न विशेषज्ञता के लिए ऊपर AI मॉडल बदलें।`,
+      ta: `வணக்கம்! நான் ${providerName} ஆல் இயக்கப்படும் உங்கள் விவசாய உதவியாளர். விவசாயம், பயிர்கள், மண் ஆரோக்கியம், பூச்சி கட்டுப்பாடு மற்றும் பலவற்றைப் பற்றி கேளுங்கள்!`,
+      te: `నమస్కారం! నేను ${providerName} ద్వారా శక్తివంతమైన మీ వ్యవసాయ సహాయకుడిని. వ్యవసాయం, పంటలు, నేల ఆరోగ్యం, పురుగుల నియంత్రణ మరియు మరిన్ని విషయాలపై నన్ను అడగండి!`,
+      es: `¡Hola! Soy tu asistente agrícola impulsado por ${providerName}. ¡Pregúntame sobre cultivos, salud del suelo, control de plagas y más!`,
+      fr: `Bonjour! Je suis votre assistant agricole alimenté par ${providerName}. Posez-moi des questions sur l'agriculture, les cultures, la santé des sols et plus encore!`,
+      de: `Hallo! Ich bin Ihr ${providerName}-gestützter Landwirtschaftsassistent. Fragen Sie mich alles über Landwirtschaft, Kulturen, Bodengesundheit und mehr!`,
     };
     return welcomeMessages[language] || welcomeMessages.en;
   };
+
+  const currentProvider = AI_PROVIDERS.find(p => p.id === selectedProvider);
 
   return (
     <>
@@ -319,7 +349,7 @@ export const AgricultureChatbot = () => {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-[380px] h-[500px] bg-background border rounded-xl shadow-2xl z-50 flex flex-col overflow-hidden">
+        <div className="fixed bottom-6 right-6 w-[400px] h-[550px] bg-background border rounded-xl shadow-2xl z-50 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b bg-primary text-primary-foreground">
             <div className="flex items-center gap-2">
@@ -334,6 +364,37 @@ export const AgricultureChatbot = () => {
             >
               <X className="h-4 w-4" />
             </Button>
+          </div>
+
+          {/* AI Provider Selector */}
+          <div className="p-3 border-b bg-muted/30">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-xs text-muted-foreground">Choose AI:</span>
+              <Select value={selectedProvider} onValueChange={(v) => setSelectedProvider(v as AIProvider)}>
+                <SelectTrigger className="h-8 flex-1 text-sm">
+                  <SelectValue>
+                    <div className="flex items-center gap-2">
+                      <span>{currentProvider?.icon}</span>
+                      <span>{currentProvider?.name}</span>
+                    </div>
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {AI_PROVIDERS.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{provider.icon}</span>
+                        <div>
+                          <span className="font-medium">{provider.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">{provider.description}</span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Messages */}
@@ -378,7 +439,7 @@ export const AgricultureChatbot = () => {
             {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">{t("analyzing") || "Thinking..."}</span>
+                <span className="text-sm">{currentProvider?.name} {t("analyzing") || "is thinking..."}</span>
               </div>
             )}
           </ScrollArea>
