@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, MapPin, Upload, Camera, AlertTriangle, Leaf, X, Copy, Check, ExternalLink } from "lucide-react";
+import { Loader2, MapPin, Upload, Camera, AlertTriangle, Leaf, X, Copy, Check, ExternalLink, Printer } from "lucide-react";
 
 interface EmergencyScanDialogProps {
   open: boolean;
@@ -546,6 +546,122 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleClose} className="flex-1">
                 Close
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  const crops = analysisResult?.recommendedCrops || [];
+                  const techniques = analysisResult?.improvementTechniques || [];
+                  const overallHealth = analysisResult?.overallHealth || "fair";
+                  const healthColor = overallHealth === "excellent" || overallHealth === "good" ? "#16a34a" : overallHealth === "fair" ? "#f59e0b" : "#dc2626";
+                  
+                  const printWindow = window.open("", "_blank");
+                  if (!printWindow) {
+                    toast({ title: "Print blocked", description: "Please allow pop-ups to print.", variant: "destructive" });
+                    return;
+                  }
+                  
+                  printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                      <head>
+                        <title>Soil Analysis Report - KISAAN</title>
+                        <style>
+                          * { margin: 0; padding: 0; box-sizing: border-box; }
+                          body { font-family: Arial, sans-serif; padding: 20px; background: white; color: #333; }
+                          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #16a34a; padding-bottom: 16px; margin-bottom: 24px; }
+                          .logo { display: flex; align-items: center; gap: 12px; }
+                          .logo-icon { width: 48px; height: 48px; background: #16a34a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; }
+                          .title { font-size: 24px; font-weight: bold; color: #166534; }
+                          .subtitle { font-size: 12px; color: #6b7280; }
+                          .info-box { background: #f0fdf4; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+                          .health-box { border-radius: 8px; padding: 16px; margin-bottom: 20px; border-left: 4px solid ${healthColor}; background: ${healthColor}15; }
+                          .health-title { font-size: 18px; font-weight: bold; text-transform: capitalize; color: ${healthColor}; }
+                          .section { margin-bottom: 20px; }
+                          .section-title { font-size: 16px; font-weight: bold; color: #166534; margin-bottom: 12px; }
+                          .nutrient-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+                          .nutrient-box { background: #f3f4f6; padding: 12px; border-radius: 8px; text-align: center; }
+                          .nutrient-label { font-size: 12px; color: #6b7280; }
+                          .nutrient-value { font-size: 20px; font-weight: bold; color: #111; }
+                          .crop-tag { display: inline-block; background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; margin: 4px; font-size: 14px; }
+                          .technique { background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #22c55e; }
+                          .technique-title { font-weight: bold; margin-bottom: 4px; }
+                          .technique-desc { font-size: 14px; color: #6b7280; }
+                          .footer { border-top: 2px solid #16a34a; padding-top: 16px; margin-top: 24px; text-align: center; color: #6b7280; font-size: 12px; }
+                          .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 100px; color: rgba(22, 163, 74, 0.08); font-weight: bold; z-index: -1; }
+                          @media print { body { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
+                        </style>
+                      </head>
+                      <body>
+                        <div class="watermark">KISAAN</div>
+                        <div class="header">
+                          <div class="logo">
+                            <div class="logo-icon">🌱</div>
+                            <div>
+                              <div class="title">KISAAN - Soil Analysis Report</div>
+                              <div class="subtitle">AI-Powered Agricultural Insights</div>
+                            </div>
+                          </div>
+                          <div style="text-align: right; font-size: 12px; color: #6b7280;">
+                            <div>Generated: ${new Date().toLocaleDateString()}</div>
+                            ${scanIdentifier ? `<div>Report ID: ${scanIdentifier.slice(0, 15)}</div>` : ""}
+                          </div>
+                        </div>
+                        
+                        <div class="info-box">
+                          <div><strong>Guest Name:</strong> ${guestName || "Anonymous"}</div>
+                          ${locationText ? `<div><strong>Location:</strong> ${locationText}</div>` : ""}
+                        </div>
+                        
+                        <div class="health-box">
+                          <div class="health-title">Soil Health: ${overallHealth}</div>
+                          <p style="margin-top: 8px; color: #374151;">${analysisResult?.summary || "Soil analysis completed."}</p>
+                        </div>
+                        
+                        ${analysisResult?.extractedData ? `
+                        <div class="nutrient-grid">
+                          ${analysisResult.extractedData.nitrogen != null ? `<div class="nutrient-box"><div class="nutrient-label">Nitrogen</div><div class="nutrient-value">${analysisResult.extractedData.nitrogen}</div></div>` : ""}
+                          ${analysisResult.extractedData.phosphorus != null ? `<div class="nutrient-box"><div class="nutrient-label">Phosphorus</div><div class="nutrient-value">${analysisResult.extractedData.phosphorus}</div></div>` : ""}
+                          ${analysisResult.extractedData.potassium != null ? `<div class="nutrient-box"><div class="nutrient-label">Potassium</div><div class="nutrient-value">${analysisResult.extractedData.potassium}</div></div>` : ""}
+                        </div>
+                        ` : ""}
+                        
+                        ${crops.length > 0 ? `
+                        <div class="section">
+                          <div class="section-title">🌾 Recommended Crops</div>
+                          <div>${crops.map((crop: string) => `<span class="crop-tag">${crop}</span>`).join("")}</div>
+                        </div>
+                        ` : ""}
+                        
+                        ${techniques.length > 0 ? `
+                        <div class="section">
+                          <div class="section-title">📈 Improvement Techniques</div>
+                          ${techniques.map((tech: any) => `
+                            <div class="technique">
+                              <div class="technique-title">${tech.title}</div>
+                              ${tech.description ? `<div class="technique-desc">${tech.description}</div>` : ""}
+                            </div>
+                          `).join("")}
+                        </div>
+                        ` : ""}
+                        
+                        <div class="footer">
+                          <p><strong>Generated by KISAAN - AI Agricultural Analysis System</strong></p>
+                          <p style="margin-top: 4px;">This report is AI-powered and should be used as guidance alongside expert consultation.</p>
+                        </div>
+                      </body>
+                    </html>
+                  `);
+                  printWindow.document.close();
+                  printWindow.onload = () => {
+                    printWindow.print();
+                    printWindow.close();
+                  };
+                }}
+                className="flex-1"
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print
               </Button>
               <Button onClick={() => window.location.href = "/auth"} className="flex-1">
                 Create Account
