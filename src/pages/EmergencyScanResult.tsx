@@ -138,8 +138,7 @@ const EmergencyScanResult = () => {
   };
 
   const handlePrint = () => {
-    const printContent = printRef.current;
-    if (!printContent) return;
+    if (!scan) return;
 
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
@@ -151,24 +150,157 @@ const EmergencyScanResult = () => {
       return;
     }
 
-    printWindow.document.write(`
+    const formattedDate = format(new Date(scan.created_at), "MMMM d, yyyy");
+    const crops = scan.recommended_crops || analysis?.recommendedCrops || [];
+    const techniques = analysis?.improvementTechniques || [];
+    const overallHealth = analysis?.overallHealth || "fair";
+    const healthColor = overallHealth === "excellent" || overallHealth === "good" ? "#16a34a" : overallHealth === "fair" ? "#f59e0b" : "#dc2626";
+
+    const printHtml = `
       <!DOCTYPE html>
       <html>
         <head>
           <title>Soil Analysis Report - KISAAN</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; }
+            body { font-family: Arial, sans-serif; padding: 20px; background: white; color: #333; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #16a34a; padding-bottom: 16px; margin-bottom: 24px; }
+            .logo { display: flex; align-items: center; gap: 12px; }
+            .logo-icon { width: 48px; height: 48px; background: #16a34a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; }
+            .title { font-size: 24px; font-weight: bold; color: #166534; }
+            .subtitle { font-size: 12px; color: #6b7280; }
+            .info-box { background: #f0fdf4; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+            .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+            .health-box { border-radius: 8px; padding: 16px; margin-bottom: 20px; border-left: 4px solid ${healthColor}; background: ${healthColor}15; }
+            .health-title { font-size: 18px; font-weight: bold; text-transform: capitalize; color: ${healthColor}; }
+            .section { margin-bottom: 20px; }
+            .section-title { font-size: 16px; font-weight: bold; color: #166534; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th { background: #16a34a; color: white; padding: 10px; text-align: left; }
+            td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+            tr:nth-child(even) { background: #f9fafb; }
+            .crop-tag { display: inline-block; background: #fef3c7; color: #92400e; padding: 4px 12px; border-radius: 20px; margin: 4px; font-size: 14px; }
+            .technique { background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px; border-left: 4px solid #22c55e; }
+            .technique-title { font-weight: bold; margin-bottom: 4px; }
+            .technique-desc { font-size: 14px; color: #6b7280; }
+            .footer { border-top: 2px solid #16a34a; padding-top: 16px; margin-top: 24px; text-align: center; color: #6b7280; font-size: 12px; }
+            .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 100px; color: rgba(22, 163, 74, 0.08); font-weight: bold; z-index: -1; }
             @media print {
               body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
-          ${printContent.innerHTML}
+          <div class="watermark">KISAAN</div>
+          
+          <div class="header">
+            <div class="logo">
+              <div class="logo-icon">🌱</div>
+              <div>
+                <div class="title">KISAAN - Soil Analysis Report</div>
+                <div class="subtitle">AI-Powered Agricultural Insights</div>
+              </div>
+            </div>
+            <div style="text-align: right; font-size: 12px; color: #6b7280;">
+              <div>Generated: ${new Date().toLocaleDateString()}</div>
+              <div>Report ID: ${scan.guest_identifier.slice(0, 8)}</div>
+            </div>
+          </div>
+
+          <div class="info-box">
+            <div class="info-grid">
+              <div><strong>Guest Name:</strong> ${scan.guest_name || "Anonymous"}</div>
+              <div><strong>Location:</strong> ${scan.location_text || "Not specified"}</div>
+              <div><strong>Scan Date:</strong> ${formattedDate}</div>
+            </div>
+          </div>
+
+          <div class="health-box">
+            <div class="health-title">Soil Health: ${overallHealth}</div>
+            <p style="margin-top: 8px; color: #374151;">${analysis?.summary || "Soil analysis completed successfully."}</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">🧪 Nutrient Analysis</div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nutrient</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Nitrogen (N)</strong></td>
+                  <td>${scan.nitrogen ?? "N/A"} ppm</td>
+                  <td>${analysis?.nutrientAnalysis?.nitrogen?.status || "—"}</td>
+                </tr>
+                <tr>
+                  <td><strong>Phosphorus (P)</strong></td>
+                  <td>${scan.phosphorus ?? "N/A"} ppm</td>
+                  <td>${analysis?.nutrientAnalysis?.phosphorus?.status || "—"}</td>
+                </tr>
+                <tr>
+                  <td><strong>Potassium (K)</strong></td>
+                  <td>${scan.potassium ?? "N/A"} ppm</td>
+                  <td>${analysis?.nutrientAnalysis?.potassium?.status || "—"}</td>
+                </tr>
+                <tr>
+                  <td><strong>pH Level</strong></td>
+                  <td>${scan.ph ?? "N/A"}</td>
+                  <td>${scan.ph ? (scan.ph < 6 ? "Acidic" : scan.ph > 7.5 ? "Alkaline" : "Optimal") : "—"}</td>
+                </tr>
+                <tr>
+                  <td><strong>Organic Matter</strong></td>
+                  <td>${scan.organic_matter ?? "N/A"}%</td>
+                  <td>${scan.organic_matter ? (scan.organic_matter < 3 ? "Low" : scan.organic_matter > 5 ? "High" : "Good") : "—"}</td>
+                </tr>
+                <tr>
+                  <td><strong>Moisture</strong></td>
+                  <td>${scan.moisture ?? "N/A"}%</td>
+                  <td>${scan.moisture ? (scan.moisture < 20 ? "Dry" : scan.moisture > 60 ? "Wet" : "Adequate") : "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          ${crops.length > 0 ? `
+          <div class="section">
+            <div class="section-title">🌾 Recommended Crops</div>
+            <div>${crops.map((crop: string) => `<span class="crop-tag">${crop}</span>`).join("")}</div>
+          </div>
+          ` : ""}
+
+          ${techniques.length > 0 ? `
+          <div class="section">
+            <div class="section-title">📈 Improvement Techniques</div>
+            ${techniques.map((tech: any) => `
+              <div class="technique">
+                <div class="technique-title">${tech.title}</div>
+                ${tech.description ? `<div class="technique-desc">${tech.description}</div>` : ""}
+              </div>
+            `).join("")}
+          </div>
+          ` : ""}
+
+          ${analysis?.seasonalRecommendations ? `
+          <div class="section" style="background: #eff6ff; border-radius: 8px; padding: 16px; border-left: 4px solid #3b82f6;">
+            <div class="section-title" style="color: #1e40af;">🗓️ Seasonal Tips</div>
+            <p style="color: #374151;">${analysis.seasonalRecommendations}</p>
+          </div>
+          ` : ""}
+
+          <div class="footer">
+            <p><strong>Generated by KISAAN - AI Agricultural Analysis System</strong></p>
+            <p style="margin-top: 4px;">This report is AI-powered and should be used as guidance alongside expert consultation.</p>
+            <p style="margin-top: 8px; font-size: 11px;">Visit kisaan.app to create an account and track your soil health over time.</p>
+          </div>
         </body>
       </html>
-    `);
+    `;
+
+    printWindow.document.write(printHtml);
     printWindow.document.close();
     printWindow.onload = () => {
       printWindow.print();
