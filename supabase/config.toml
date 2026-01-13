@@ -1,7 +1,7 @@
 project_id = "rwgdzdnysobfezgjxiuu"
 
 [functions.analyze-soil]
-verify_jwt = true
+verify_jwt = false
 
 [functions.agriculture-chat]
 verify_jwt = false

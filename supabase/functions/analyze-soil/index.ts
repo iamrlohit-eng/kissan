@@ -53,40 +53,124 @@ const detectLanguageFromCoordinates = (lat: number, lon: number): { language: st
   return { language: 'en', languageName: 'English' };
 };
 
+// Simple rate limiting map (in production, use Redis or similar)
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_MAX = 5; // 5 requests
+const RATE_LIMIT_WINDOW = 60 * 60 * 1000; // 1 hour in milliseconds
+
+const checkRateLimit = (clientIP: string): boolean => {
+  const now = Date.now();
+  const entry = rateLimitMap.get(clientIP);
+  
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(clientIP, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+  
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  
+  entry.count++;
+  return true;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Verify authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
+    const requestBody = await req.json();
     const { 
       nitrogen, phosphorus, potassium, ph, organicMatter, moisture, temperature, 
       currentCrop, location, latitude, longitude, preferredLanguage,
-      fileBase64, fileType 
-    } = await req.json();
+      fileBase64, fileType, isEmergencyScan
+    } = requestBody;
+
+    const authHeader = req.headers.get('Authorization');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    
+    // For emergency scans, allow anonymous access with rate limiting
+    if (isEmergencyScan) {
+      // Rate limit anonymous requests by IP
+      const clientIP = req.headers.get('cf-connecting-ip') || 
+                       req.headers.get('x-forwarded-for')?.split(',')[0] || 
+                       'unknown';
+      
+      console.log('Emergency scan request from IP:', clientIP);
+      
+      if (!checkRateLimit(clientIP)) {
+        console.log('Rate limit exceeded for IP:', clientIP);
+        return new Response(JSON.stringify({ error: 'Too many requests. Please try again later.' }), {
+          status: 429,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Validate required fields for emergency scan
+      if (!fileBase64 || !fileType) {
+        return new Response(JSON.stringify({ error: 'File is required for emergency scan' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Validate file type
+      const allowedFileTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+      if (!allowedFileTypes.includes(fileType)) {
+        return new Response(JSON.stringify({ error: 'Invalid file type' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Validate file size (base64 is ~33% larger than original)
+      const maxBase64Size = 15 * 1024 * 1024; // ~10MB original file
+      if (fileBase64.length > maxBase64Size) {
+        return new Response(JSON.stringify({ error: 'File too large' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // Validate coordinates if provided
+      if (latitude !== undefined && (latitude < -90 || latitude > 90)) {
+        return new Response(JSON.stringify({ error: 'Invalid latitude' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (longitude !== undefined && (longitude < -180 || longitude > 180)) {
+        return new Response(JSON.stringify({ error: 'Invalid longitude' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      console.log('Emergency scan validation passed, proceeding with analysis...');
+    } else {
+      // Regular authenticated request
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Invalid token' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
     
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
