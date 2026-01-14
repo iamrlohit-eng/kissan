@@ -186,7 +186,7 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
         reader.readAsDataURL(selectedFile);
       });
 
-      // Call AI analysis
+      // Call AI analysis - edge function now handles database insert securely
       const { data: analysisData, error: analysisError } = await supabase.functions.invoke(
         "analyze-soil",
         {
@@ -197,36 +197,19 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
             fileBase64,
             fileType: selectedFile.type,
             isEmergencyScan: true,
+            // Pass guest data to edge function for secure server-side insert
+            guestIdentifier,
+            guestName: guestName || null,
+            guestPhone: guestPhone || null,
+            locationText: locationText || null,
+            fileUrl,
           },
         }
       );
 
       if (analysisError) throw analysisError;
 
-      // Save to database
-      const { error: insertError } = await supabase.from("emergency_scans").insert({
-        guest_identifier: guestIdentifier,
-        guest_name: guestName || null,
-        guest_phone: guestPhone || null,
-        latitude: location?.lat,
-        longitude: location?.lng,
-        location_text: locationText || null,
-        file_url: fileUrl,
-        file_type: selectedFile.type,
-        ai_analysis: analysisData?.analysis ? JSON.stringify(analysisData.analysis) : null,
-        recommended_crops: analysisData?.analysis?.recommendedCrops || null,
-        improvement_techniques: analysisData?.analysis?.improvementTechniques?.map((t: any) => t.title) || null,
-        preferred_language: preferredLanguage,
-        nitrogen: analysisData?.analysis?.extractedData?.nitrogen,
-        phosphorus: analysisData?.analysis?.extractedData?.phosphorus,
-        potassium: analysisData?.analysis?.extractedData?.potassium,
-        ph: analysisData?.analysis?.extractedData?.ph,
-        organic_matter: analysisData?.analysis?.extractedData?.organicMatter,
-        moisture: analysisData?.analysis?.extractedData?.moisture,
-      });
-
-      if (insertError) throw insertError;
-
+      // No need to insert directly - edge function handles it securely with service role
       setAnalysisResult(analysisData?.analysis);
       setScanIdentifier(guestIdentifier);
       setStep("results");
@@ -237,7 +220,7 @@ export const EmergencyScanDialog = ({ open, onOpenChange }: EmergencyScanDialogP
           body: {
             type: "emergency_scan",
             userEmail: "guest@emergency-scan.local",
-            adminEmail: "admin@kisaan.app", // This should be configurable
+            adminEmail: "admin@kisaan.app",
             scanDetails: {
               guestName: guestName || undefined,
               guestPhone: guestPhone || undefined,
