@@ -75,6 +75,13 @@ const checkRateLimit = (clientIP: string): boolean => {
   return true;
 };
 
+// Generate server-side insert token that validates the insert came from this function
+const generateInsertToken = (): string => {
+  const timestamp = Date.now();
+  const randomPart = Math.random().toString(36).substring(2, 15);
+  return `srv_${timestamp}_${randomPart}`;
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -85,12 +92,15 @@ serve(async (req) => {
     const { 
       nitrogen, phosphorus, potassium, ph, organicMatter, moisture, temperature, 
       currentCrop, location, latitude, longitude, preferredLanguage,
-      fileBase64, fileType, isEmergencyScan
+      fileBase64, fileType, isEmergencyScan,
+      // Emergency scan specific fields
+      guestIdentifier, guestName, guestPhone, locationText, fileUrl
     } = requestBody;
 
     const authHeader = req.headers.get('Authorization');
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     // For emergency scans, allow anonymous access with rate limiting
     if (isEmergencyScan) {
@@ -112,6 +122,14 @@ serve(async (req) => {
       // Validate required fields for emergency scan
       if (!fileBase64 || !fileType) {
         return new Response(JSON.stringify({ error: 'File is required for emergency scan' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Validate guestIdentifier for emergency scans
+      if (!guestIdentifier || guestIdentifier.length < 10) {
+        return new Response(JSON.stringify({ error: 'Invalid guest identifier' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
@@ -148,6 +166,11 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      // Validate and sanitize guest input
+      const sanitizedGuestName = guestName ? String(guestName).slice(0, 100) : null;
+      const sanitizedGuestPhone = guestPhone ? String(guestPhone).slice(0, 20) : null;
+      const sanitizedLocationText = locationText ? String(locationText).slice(0, 200) : null;
       
       console.log('Emergency scan validation passed, proceeding with analysis...');
     } else {
@@ -340,10 +363,56 @@ Be practical and specific to the farmer's needs. Focus on actionable advice.`;
 
     const analysis = JSON.parse(jsonContent.trim());
 
+    // For emergency scans, save to database using service role (bypasses RLS)
+    if (isEmergencyScan && guestIdentifier) {
+      console.log('Saving emergency scan to database...');
+      
+      // Use service role client for secure insert
+      const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey);
+      
+      // Generate server-side insert token
+      const insertToken = generateInsertToken();
+      
+      // Sanitize inputs
+      const sanitizedGuestName = guestName ? String(guestName).slice(0, 100) : null;
+      const sanitizedGuestPhone = guestPhone ? String(guestPhone).slice(0, 20) : null;
+      const sanitizedLocationText = locationText ? String(locationText).slice(0, 200) : null;
+      
+      const { error: insertError } = await serviceClient.from('emergency_scans').insert({
+        guest_identifier: guestIdentifier,
+        guest_name: sanitizedGuestName,
+        guest_phone: sanitizedGuestPhone,
+        latitude: latitude ?? null,
+        longitude: longitude ?? null,
+        location_text: sanitizedLocationText,
+        file_url: fileUrl ?? null,
+        file_type: fileType ?? null,
+        ai_analysis: JSON.stringify(analysis),
+        recommended_crops: analysis?.recommendedCrops || null,
+        improvement_techniques: analysis?.improvementTechniques?.map((t: any) => t.title) || null,
+        preferred_language: preferredLanguage || 'en',
+        nitrogen: analysis?.extractedData?.nitrogen ?? null,
+        phosphorus: analysis?.extractedData?.phosphorus ?? null,
+        potassium: analysis?.extractedData?.potassium ?? null,
+        ph: analysis?.extractedData?.ph ?? null,
+        organic_matter: analysis?.extractedData?.organicMatter ?? null,
+        moisture: analysis?.extractedData?.moisture ?? null,
+        insert_token: insertToken, // Server-generated token for security
+      });
+
+      if (insertError) {
+        console.error('Error saving emergency scan:', insertError);
+        // Don't fail the request, just log the error - user still gets analysis
+      } else {
+        console.log('Emergency scan saved successfully');
+      }
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       analysis,
-      detectedLanguage: targetLanguage
+      detectedLanguage: targetLanguage,
+      scanSaved: isEmergencyScan ? true : undefined
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

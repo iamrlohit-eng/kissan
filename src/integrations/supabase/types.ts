@@ -101,6 +101,7 @@ export type Database = {
           guest_phone: string | null
           id: string
           improvement_techniques: string[] | null
+          insert_token: string | null
           latitude: number | null
           location_text: string | null
           longitude: number | null
@@ -128,6 +129,7 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           improvement_techniques?: string[] | null
+          insert_token?: string | null
           latitude?: number | null
           location_text?: string | null
           longitude?: number | null
@@ -155,6 +157,7 @@ export type Database = {
           guest_phone?: string | null
           id?: string
           improvement_techniques?: string[] | null
+          insert_token?: string | null
           latitude?: number | null
           location_text?: string | null
           longitude?: number | null
@@ -344,6 +347,43 @@ export type Database = {
           role: string
           user_id: string
         }[]
+      }
+      get_emergency_scan_by_identifier: {
+        Args: { p_guest_identifier: string }
+        Returns: {
+          ai_analysis: string | null
+          created_at: string
+          file_type: string | null
+          file_url: string | null
+          follow_up_notes: string | null
+          follow_up_status: string | null
+          followed_up_at: string | null
+          followed_up_by: string | null
+          guest_identifier: string
+          guest_name: string | null
+          guest_phone: string | null
+          id: string
+          improvement_techniques: string[] | null
+          insert_token: string | null
+          latitude: number | null
+          location_text: string | null
+          longitude: number | null
+          moisture: number | null
+          nitrogen: number | null
+          organic_matter: number | null
+          ph: number | null
+          phosphorus: number | null
+          potassium: number | null
+          preferred_language: string | null
+          recommended_crops: string[] | null
+          temperature: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "emergency_scans"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       has_role: {
         Args: {

@@ -95,25 +95,30 @@ const EmergencyScanResult = () => {
   const fetchScan = async () => {
     setIsLoading(true);
     try {
-      // Use the guest identifier from URL to find the scan
+      // Use the secure RPC function to fetch scan by identifier
+      // This prevents enumeration attacks and ensures only valid identifiers work
       const { data, error } = await supabase
-        .from("emergency_scans")
-        .select("*")
-        .eq("guest_identifier", scanId)
-        .maybeSingle();
+        .rpc("get_emergency_scan_by_identifier", { p_guest_identifier: scanId });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching scan:", error);
+        setNotFound(true);
+        return;
+      }
       
-      if (!data) {
+      // RPC returns an array, get first result
+      const scanData = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      
+      if (!scanData) {
         setNotFound(true);
         return;
       }
 
-      setScan(data);
+      setScan(scanData);
       
-      if (data.ai_analysis) {
+      if (scanData.ai_analysis) {
         try {
-          setAnalysis(JSON.parse(data.ai_analysis));
+          setAnalysis(JSON.parse(scanData.ai_analysis));
         } catch {
           setAnalysis(null);
         }
