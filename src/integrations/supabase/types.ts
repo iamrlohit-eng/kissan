@@ -250,6 +250,47 @@ export type Database = {
           },
         ]
       }
+      field_images: {
+        Row: {
+          created_at: string | null
+          field_id: string
+          id: string
+          image_metadata: Json | null
+          image_url: string | null
+          processing_status: string | null
+          upload_date: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          field_id: string
+          id?: string
+          image_metadata?: Json | null
+          image_url?: string | null
+          processing_status?: string | null
+          upload_date?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          field_id?: string
+          id?: string
+          image_metadata?: Json | null
+          image_url?: string | null
+          processing_status?: string | null
+          upload_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_images_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fields: {
         Row: {
           acres: number | null
@@ -283,6 +324,84 @@ export type Database = {
         }
         Relationships: []
       }
+      pest_detection_results: {
+        Row: {
+          affected_areas: Json | null
+          analysis_date: string | null
+          analysis_text: string | null
+          confidence_score: number | null
+          created_at: string | null
+          crop_type: string | null
+          disease_detected: string | null
+          estimated_spray_cost: number | null
+          field_id: string
+          field_image_id: string | null
+          id: string
+          infection_level: number | null
+          pest_types: Json | null
+          recommended_pesticides: Json | null
+          severity_classification: string | null
+          spray_urgency: string | null
+          user_id: string
+          weather_conditions: Json | null
+        }
+        Insert: {
+          affected_areas?: Json | null
+          analysis_date?: string | null
+          analysis_text?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          crop_type?: string | null
+          disease_detected?: string | null
+          estimated_spray_cost?: number | null
+          field_id: string
+          field_image_id?: string | null
+          id?: string
+          infection_level?: number | null
+          pest_types?: Json | null
+          recommended_pesticides?: Json | null
+          severity_classification?: string | null
+          spray_urgency?: string | null
+          user_id: string
+          weather_conditions?: Json | null
+        }
+        Update: {
+          affected_areas?: Json | null
+          analysis_date?: string | null
+          analysis_text?: string | null
+          confidence_score?: number | null
+          created_at?: string | null
+          crop_type?: string | null
+          disease_detected?: string | null
+          estimated_spray_cost?: number | null
+          field_id?: string
+          field_image_id?: string | null
+          id?: string
+          infection_level?: number | null
+          pest_types?: Json | null
+          recommended_pesticides?: Json | null
+          severity_classification?: string | null
+          spray_urgency?: string | null
+          user_id?: string
+          weather_conditions?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pest_detection_results_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "fields"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pest_detection_results_field_image_id_fkey"
+            columns: ["field_image_id"]
+            isOneToOne: false
+            referencedRelation: "field_images"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -312,6 +431,161 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      spray_operations: {
+        Row: {
+          actual_coverage_area: number | null
+          after_image_url: string | null
+          application_method: string | null
+          before_image_url: string | null
+          completion_notes: string | null
+          coverage_area: number | null
+          created_at: string | null
+          equipment_id: string | null
+          field_id: string
+          follow_up_date: string | null
+          gps_coordinates: Json | null
+          id: string
+          infection_reduction: number | null
+          pest_detection_id: string | null
+          pesticide_used: string | null
+          quantity_used: number | null
+          safety_precautions: string[] | null
+          spray_date: string | null
+          spray_pattern: Json | null
+          status: string | null
+          updated_at: string | null
+          user_id: string
+          weather_conditions: Json | null
+        }
+        Insert: {
+          actual_coverage_area?: number | null
+          after_image_url?: string | null
+          application_method?: string | null
+          before_image_url?: string | null
+          completion_notes?: string | null
+          coverage_area?: number | null
+          created_at?: string | null
+          equipment_id?: string | null
+          field_id: string
+          follow_up_date?: string | null
+          gps_coordinates?: Json | null
+          id?: string
+          infection_reduction?: number | null
+          pest_detection_id?: string | null
+          pesticide_used?: string | null
+          quantity_used?: number | null
+          safety_precautions?: string[] | null
+          spray_date?: string | null
+          spray_pattern?: Json | null
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+          weather_conditions?: Json | null
+        }
+        Update: {
+          actual_coverage_area?: number | null
+          after_image_url?: string | null
+          application_method?: string | null
+          before_image_url?: string | null
+          completion_notes?: string | null
+          coverage_area?: number | null
+          created_at?: string | null
+          equipment_id?: string | null
+          field_id?: string
+          follow_up_date?: string | null
+          gps_coordinates?: Json | null
+          id?: string
+          infection_reduction?: number | null
+          pest_detection_id?: string | null
+          pesticide_used?: string | null
+          quantity_used?: number | null
+          safety_precautions?: string[] | null
+          spray_date?: string | null
+          spray_pattern?: Json | null
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+          weather_conditions?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spray_operations_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: false
+            referencedRelation: "fields"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spray_operations_pest_detection_id_fkey"
+            columns: ["pest_detection_id"]
+            isOneToOne: false
+            referencedRelation: "pest_detection_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spray_recommendations: {
+        Row: {
+          alternative_pesticides: Json | null
+          application_method: string | null
+          concentration: number | null
+          cost_estimate: number | null
+          created_at: string | null
+          id: string
+          pest_detection_id: string | null
+          pesticide_name: string | null
+          quantity_liters: number | null
+          safety_precautions: string | null
+          success_rate: number | null
+          urgency_level: string | null
+          user_id: string
+          waiting_period_days: number | null
+          weather_requirements: Json | null
+        }
+        Insert: {
+          alternative_pesticides?: Json | null
+          application_method?: string | null
+          concentration?: number | null
+          cost_estimate?: number | null
+          created_at?: string | null
+          id?: string
+          pest_detection_id?: string | null
+          pesticide_name?: string | null
+          quantity_liters?: number | null
+          safety_precautions?: string | null
+          success_rate?: number | null
+          urgency_level?: string | null
+          user_id: string
+          waiting_period_days?: number | null
+          weather_requirements?: Json | null
+        }
+        Update: {
+          alternative_pesticides?: Json | null
+          application_method?: string | null
+          concentration?: number | null
+          cost_estimate?: number | null
+          created_at?: string | null
+          id?: string
+          pest_detection_id?: string | null
+          pesticide_name?: string | null
+          quantity_liters?: number | null
+          safety_precautions?: string | null
+          success_rate?: number | null
+          urgency_level?: string | null
+          user_id?: string
+          waiting_period_days?: number | null
+          weather_requirements?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spray_recommendations_pest_detection_id_fkey"
+            columns: ["pest_detection_id"]
+            isOneToOne: false
+            referencedRelation: "pest_detection_results"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

@@ -18,7 +18,7 @@ import { AIAnalysisCard } from "@/components/AIAnalysisCard";
 import { AgricultureChatbot } from "@/components/AgricultureChatbot";
 import { RequestAdminDialog } from "@/components/RequestAdminDialog";
 import { DeleteFieldDialog } from "@/components/DeleteFieldDialog";
-import { Sprout, Plus, LogOut, MapPin, Shield, Trash2 } from "lucide-react";
+import { Sprout, Plus, LogOut, MapPin, Shield, Trash2, Bug, Clock } from "lucide-react";
 
 interface Field {
   id: string;
@@ -275,6 +275,22 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center gap-3">
               <LanguageSelector />
+              {selectedField && (
+                <>
+                  <Link to={`/dashboard/pest-detection?field=${selectedField.id}`}>
+                    <Button variant="outline" size="sm">
+                      <Bug className="w-4 h-4 mr-2" />
+                      Pest Detection
+                    </Button>
+                  </Link>
+                  <Link to="/dashboard/pest-detection/history">
+                    <Button variant="outline" size="sm">
+                      <Clock className="w-4 h-4 mr-2" />
+                      Spray History
+                    </Button>
+                  </Link>
+                </>
+              )}
               {isAdmin && (
                 <Link to="/admin">
                   <Button variant="outline" size="sm">
