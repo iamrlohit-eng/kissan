@@ -13,6 +13,9 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Admin = lazy(() => import("./pages/Admin"));
 const AdminLogin = lazy(() => import("./pages/AdminLogin"));
 const EmergencyScanResult = lazy(() => import("./pages/EmergencyScanResult"));
+const PestAnalyze = lazy(() => import("./pages/PestAnalyze"));
+const SprayOperation = lazy(() => import("./pages/SprayOperation"));
+const SprayHistory = lazy(() => import("./pages/SprayHistory"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -38,6 +41,9 @@ const App = () => (
             <Route path="/admin" element={<Suspense fallback={<PageLoader />}><Admin /></Suspense>} />
             <Route path="/admin-login" element={<Suspense fallback={<PageLoader />}><AdminLogin /></Suspense>} />
             <Route path="/scan/:scanId" element={<Suspense fallback={<PageLoader />}><EmergencyScanResult /></Suspense>} />
+            <Route path="/dashboard/pest-detection" element={<Suspense fallback={<PageLoader />}><PestAnalyze /></Suspense>} />
+            <Route path="/dashboard/pest-detection/create-operation" element={<Suspense fallback={<PageLoader />}><SprayOperation /></Suspense>} />
+            <Route path="/dashboard/pest-detection/history" element={<Suspense fallback={<PageLoader />}><SprayHistory /></Suspense>} />
             <Route path="*" element={<Suspense fallback={<PageLoader />}><NotFound /></Suspense>} />
           </Routes>
         </BrowserRouter>
