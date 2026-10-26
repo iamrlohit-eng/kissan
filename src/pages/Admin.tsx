@@ -51,7 +51,8 @@ import {
   AlertTriangle,
   Phone,
   ExternalLink,
-  MessageCircle
+  MessageCircle,
+  Lock
 } from "lucide-react";
 import { format } from "date-fns";
 import { Database } from "@/integrations/supabase/types";
@@ -124,6 +125,7 @@ const activityTypeLabels: Record<ActivityType, { label: string; icon: React.Reac
   ai_analysis: { label: "AI Analysis", icon: <Bot className="w-4 h-4" />, color: "bg-cyan-100 text-cyan-700" },
   ai_chat: { label: "AI Chat", icon: <MessageSquare className="w-4 h-4" />, color: "bg-pink-100 text-pink-700" },
   profile_update: { label: "Profile Updated", icon: <User className="w-4 h-4" />, color: "bg-orange-100 text-orange-700" },
+  password_reset: { label: "Password Reset", icon: <Lock className="w-4 h-4" />, color: "bg-amber-100 text-amber-700" },
 };
 
 const Admin = () => {

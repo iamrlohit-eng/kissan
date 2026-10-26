@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793035996749,
+      "tag": "0000_add_password_reset_activity_type",
+      "breakpoints": true
+    }
+  ]
+}
