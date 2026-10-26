@@ -696,6 +696,7 @@ export type Database = {
         | "ai_analysis"
         | "ai_chat"
         | "profile_update"
+        | "password_reset"
       app_role: "admin" | "user"
     }
     CompositeTypes: {
@@ -839,6 +840,7 @@ export const Constants = {
         "ai_analysis",
         "ai_chat",
         "profile_update",
+        "password_reset",
       ],
       app_role: ["admin", "user"],
     },
