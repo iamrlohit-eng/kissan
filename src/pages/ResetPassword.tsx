@@ -16,6 +16,9 @@ const ResetPassword = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [resendEmail, setResendEmail] = useState("");
+  const [isResending, setIsResending] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -122,6 +125,25 @@ const ResetPassword = () => {
     }
   };
 
+  const handleResendLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resendEmail.trim())) {
+      toast({ title: "Error", description: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
+    setIsResending(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(resendEmail.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setIsResending(false);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      setResendSent(true);
+      toast({ title: "Success", description: "A new password reset link has been sent to your email." });
+    }
+  };
+
   if (checkingSession) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -140,9 +162,23 @@ const ResetPassword = () => {
             </div>
             <h1 className="font-display text-2xl font-bold text-foreground mb-2">Invalid or Expired Link</h1>
             <p className="text-muted-foreground mb-6">
-              This password reset link is invalid or has expired. Please request a new one.
+              This password reset link is invalid or has expired. Enter your email to get a new one.
             </p>
-            <Button className="w-full" onClick={() => navigate("/auth")}>
+            <form onSubmit={handleResendLink} className="space-y-3 text-left">
+              <Label htmlFor="resendEmail">Email</Label>
+              <Input
+                id="resendEmail"
+                type="email"
+                placeholder="you@example.com"
+                value={resendEmail}
+                onChange={(e) => setResendEmail(e.target.value)}
+                required
+              />
+              <Button type="submit" className="w-full" disabled={isResending || resendSent}>
+                {isResending ? "Sending..." : resendSent ? "Email Sent - Check Your Inbox" : "Send New Reset Link"}
+              </Button>
+            </form>
+            <Button variant="outline" className="w-full mt-3" onClick={() => navigate("/auth")}>
               Back to Login
             </Button>
           </div>
