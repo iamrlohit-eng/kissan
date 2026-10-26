@@ -17,7 +17,8 @@ type ActivityType =
   | 'report_upload'
   | 'ai_analysis'
   | 'ai_chat'
-  | 'profile_update';
+  | 'profile_update'
+  | 'password_reset';
 
 interface LogActivityParams {
   activityType: ActivityType;
