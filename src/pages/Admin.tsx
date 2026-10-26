@@ -51,7 +51,8 @@ import {
   AlertTriangle,
   Phone,
   ExternalLink,
-  MessageCircle
+  MessageCircle,
+  Lock
 } from "lucide-react";
 import { format } from "date-fns";
 import { Database } from "@/integrations/supabase/types";
